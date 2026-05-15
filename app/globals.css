@@ -33,9 +33,32 @@
     --font-dm-sans: 'DM Sans', sans-serif;
   }
 
-  * {
-    @apply border-border;
+  .dark {
+    --background: 220 16% 12%;
+    --foreground: 40 20% 92%;
+    --card: 220 14% 17%;
+    --card-foreground: 40 20% 92%;
+    --popover: 220 14% 17%;
+    --popover-foreground: 40 20% 92%;
+    --primary: 152 45% 22%;
+    --primary-foreground: 37 30% 95%;
+    --secondary: 152 20% 18%;
+    --secondary-foreground: 149 40% 65%;
+    --muted: 220 10% 22%;
+    --muted-foreground: 40 10% 52%;
+    --accent: 149 54% 44%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 13 78% 57%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 10% 24%;
+    --input: 220 10% 24%;
+    --ring: 149 54% 44%;
+    --income: 149 54% 44%;
+    --expense: 13 78% 57%;
+    --gold: 43 60% 50%;
   }
+
+  * { @apply border-border; }
 
   body {
     @apply bg-background text-foreground font-sans;
@@ -44,9 +67,7 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3 {
-    @apply font-display;
-  }
+  h1, h2, h3 { @apply font-display; }
 }
 
 @layer utilities {
@@ -59,19 +80,6 @@
   .bg-expense\/10 { background-color: hsl(var(--expense) / 0.1); }
   .bg-gold\/10 { background-color: hsl(var(--gold) / 0.1); }
 
-  .grain {
-    position: relative;
-  }
-  .grain::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    border-radius: inherit;
-    z-index: 0;
-  }
-
   .animate-slide-in-1 { animation: slide-in 0.4s ease-out 0.05s both; }
   .animate-slide-in-2 { animation: slide-in 0.4s ease-out 0.1s both; }
   .animate-slide-in-3 { animation: slide-in 0.4s ease-out 0.15s both; }
@@ -79,7 +87,6 @@
   .animate-slide-in-5 { animation: slide-in 0.4s ease-out 0.25s both; }
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }

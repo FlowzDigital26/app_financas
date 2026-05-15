@@ -2,14 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, ArrowLeftRight, LogOut, Leaf } from 'lucide-react'
+import { LayoutDashboard, FileText, Target, Tags, LogOut, Leaf } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/transactions', label: 'Transações', icon: ArrowLeftRight },
+  { href: '/', label: 'Home', icon: LayoutDashboard },
+  { href: '/extrato', label: 'Extrato', icon: FileText },
+  { href: '/objetivos', label: 'Objetivos', icon: Target },
+  { href: '/categorias', label: 'Categorias', icon: Tags },
 ]
 
 export function Sidebar() {
@@ -25,7 +28,6 @@ export function Sidebar() {
 
   return (
     <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-primary text-primary-foreground shrink-0">
-      {/* Logo */}
       <div className="p-6 pb-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
@@ -41,7 +43,6 @@ export function Sidebar() {
         <div className="h-px bg-primary-foreground/10" />
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         <p className="px-3 mb-3 text-xs font-medium tracking-wider uppercase text-primary-foreground/40">
           Menu
@@ -66,9 +67,12 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Sign out */}
-      <div className="p-3 pb-6">
+      <div className="p-3 pb-6 space-y-1">
         <div className="h-px bg-primary-foreground/10 mb-3" />
+        <div className="flex items-center gap-1 px-1">
+          <ThemeToggle className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 flex-1 justify-start gap-3 h-10 px-2" />
+          <span className="text-xs text-primary-foreground/50 pointer-events-none">Tema</span>
+        </div>
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10"
