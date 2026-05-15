@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, Leaf } from 'lucide-react'
+import Image from 'next/image'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,13 +53,9 @@ export default function RegisterPage() {
   return (
     <div className="w-full max-w-sm animate-fade-in">
       {/* Logo */}
-      <div className="flex items-center justify-center gap-2.5 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-          <Leaf className="w-5 h-5 text-primary-foreground" />
-        </div>
-        <span className="font-display text-2xl font-semibold">
-          Finanças<span className="text-accent italic">Pro</span>
-        </span>
+      <div className="flex flex-col items-center gap-1.5 mb-8">
+        <Image src="/flowz-logo.svg" alt="Flowz Finance" width={160} height={64} className="h-14 w-auto object-contain" />
+        <span className="text-xs font-medium text-muted-foreground tracking-widest uppercase">Finance</span>
       </div>
 
       <Card className="border-border/60 shadow-sm">

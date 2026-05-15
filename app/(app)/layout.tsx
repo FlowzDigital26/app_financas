@@ -22,9 +22,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Sticky top bar */}
         <div className="flex justify-between items-center px-4 sm:px-6 py-3 border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-40">
           {/* Flowz logo — visible on mobile (sidebar hidden) */}
-          <div className="lg:hidden flex items-center gap-2">
-            <Image src="/flowz-logo.svg" alt="Flowz Finance" width={72} height={28} className="object-contain h-6 w-auto" />
-            <span className="font-display text-sm font-semibold text-accent">Finance</span>
+          <div className="lg:hidden">
+            <Image src="/flowz-logo.svg" alt="Flowz Finance" width={90} height={32} className="object-contain h-7 w-auto" />
           </div>
           {/* Spacer on desktop */}
           <div className="hidden lg:block" />

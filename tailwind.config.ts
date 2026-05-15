@@ -11,8 +11,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['var(--font-fraunces)', 'Georgia', 'serif'],
-        sans: ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-poppins)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-poppins)', 'system-ui', 'sans-serif'],
       },
       colors: {
         background: 'hsl(var(--background))',

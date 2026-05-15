@@ -51,10 +51,7 @@ export function Sidebar() {
             <Image src="/flowz-logo.svg" alt="Flowz" width={28} height={28} className="object-contain" />
           </div>
         ) : (
-          <div className="flex items-center gap-2.5">
-            <Image src="/flowz-logo.svg" alt="Flowz Finance" width={80} height={32} className="object-contain h-7 w-auto" />
-            <span className="font-display text-base font-semibold text-accent tracking-tight">Finance</span>
-          </div>
+          <Image src="/flowz-logo.svg" alt="Flowz Finance" width={120} height={40} className="object-contain h-8 w-auto" />
         )}
       </div>
 
