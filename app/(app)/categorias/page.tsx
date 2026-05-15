@@ -143,7 +143,13 @@ export default function CategoriasPage() {
     const { error } = await supabase.from('profiles').upsert({
       id: user.id, hidden_defaults: newHidden, updated_at: new Date().toISOString(),
     })
-    if (error) { toast({ title: 'Erro ao remover', variant: 'destructive' }); return }
+    if (error) {
+      toast({
+        title: 'Execute a migração 004 no Supabase',
+        description: 'Rode o SQL da migration 004_hidden_defaults.sql no SQL Editor do Supabase.',
+        variant: 'destructive',
+      }); return
+    }
     setHiddenDefaults(newHidden)
     toast({ title: 'Categoria ocultada' })
   }

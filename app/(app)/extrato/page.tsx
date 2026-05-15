@@ -262,7 +262,7 @@ export default function ExtratoPage() {
           <Card key={item.label} className="text-center">
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{item.label}</p>
-              <p className={`text-lg font-display font-semibold ${item.color}`}>{formatCurrency(item.value)}</p>
+              <p className={`text-2xl font-semibold ${item.color}`}>{formatCurrency(item.value)}</p>
             </CardContent>
           </Card>
         ))}

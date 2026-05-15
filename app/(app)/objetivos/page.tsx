@@ -46,9 +46,9 @@ export default async function ObjetivosPage() {
             { label: 'Objetivos ativos', value: String(active.length), color: 'text-foreground' },
             { label: 'Concluídos', value: String(completed.length), color: 'text-accent' },
           ].map((item) => (
-            <div key={item.label} className="bg-card rounded-xl border border-border p-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{item.label}</p>
-              <p className={`text-xl font-display font-semibold ${item.color}`}>{item.value}</p>
+            <div key={item.label} className="bg-card rounded-xl border border-border p-5 text-center">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">{item.label}</p>
+              <p className={`text-3xl font-semibold ${item.color}`}>{item.value}</p>
             </div>
           ))}
         </div>

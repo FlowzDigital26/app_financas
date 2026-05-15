@@ -55,7 +55,7 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     {card.label}
                   </p>
-                  <p className={`text-2xl font-display font-semibold ${card.colorClass}`}>
+                  <p className={`text-3xl font-semibold ${card.colorClass}`}>
                     {formatCurrency(card.value)}
                   </p>
                 </div>
