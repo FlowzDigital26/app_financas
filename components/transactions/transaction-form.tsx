@@ -31,6 +31,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [customCategories, setCustomCategories] = useState<Category[]>([])
+  const [hiddenDefaults, setHiddenDefaults] = useState<string[]>([])
   const router = useRouter()
   const [type, setType] = useState<TransactionType>(transaction?.type ?? 'expense')
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
@@ -43,26 +44,27 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
   const supabase = createClient()
   const isEditing = !!transaction
 
-  // Load custom categories
+  // Load custom categories + hidden defaults
   useEffect(() => {
     if (!open) return
     async function loadCategories() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name')
-      setCustomCategories((data ?? []) as Category[])
+      const [{ data: cats }, { data: profile }] = await Promise.all([
+        supabase.from('categories').select('*').eq('user_id', user.id).order('name'),
+        supabase.from('profiles').select('hidden_defaults').eq('id', user.id).maybeSingle(),
+      ])
+      setCustomCategories((cats ?? []) as Category[])
+      setHiddenDefaults((profile?.hidden_defaults ?? []) as string[])
     }
     loadCategories()
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Build categories list: defaults + custom, filtered by type
-  const defaultCats = type === 'income'
-    ? DEFAULT_INCOME_CATEGORIES.map((c) => c.name)
-    : DEFAULT_EXPENSE_CATEGORIES.map((c) => c.name)
+  // Build categories list: visible defaults + custom, filtered by type
+  const defaultCats = (type === 'income'
+    ? DEFAULT_INCOME_CATEGORIES
+    : DEFAULT_EXPENSE_CATEGORIES
+  ).filter((c) => !hiddenDefaults.includes(c.name)).map((c) => c.name)
   const customCats = customCategories
     .filter((c) => c.type === type)
     .map((c) => c.name)

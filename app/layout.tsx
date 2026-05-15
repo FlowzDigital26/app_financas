@@ -4,7 +4,7 @@ import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'FinançasPro — Controle Financeiro Pessoal',
+  title: 'Flowz Finance — Controle Financeiro Pessoal',
   description: 'Gerencie suas finanças pessoais com clareza e inteligência',
 }
 

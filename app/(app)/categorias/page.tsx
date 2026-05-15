@@ -12,12 +12,16 @@ import { useToast } from '@/components/ui/use-toast'
 import { DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES, type Category, type TransactionType } from '@/types'
 
 const COLOR_OPTIONS = [
-  '#3aaa6e', '#22c55e', '#10b981', '#06b6d4', '#3b82f6',
+  '#3aaa6e', '#22c55e', '#10b981', '#2ECC9A', '#06b6d4', '#3b82f6',
   '#8b5cf6', '#ec4899', '#f59e0b', '#f97316', '#e85c41', '#64748b',
 ]
 
+// A default category entry (hardcoded) as a display object
+interface DefaultCat { name: string; color: string; type: TransactionType }
+
 export default function CategoriasPage() {
   const [categories, setCategories] = useState<Category[]>([])
+  const [hiddenDefaults, setHiddenDefaults] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -25,8 +29,8 @@ export default function CategoriasPage() {
   const [type, setType] = useState<TransactionType>('expense')
   const [color, setColor] = useState(COLOR_OPTIONS[0])
 
-  // Edit state
-  const [editCat, setEditCat] = useState<Category | null>(null)
+  // Edit state (used for both custom and default categories)
+  const [editTarget, setEditTarget] = useState<{ cat?: Category; default?: DefaultCat } | null>(null)
   const [editName, setEditName] = useState('')
   const [editColor, setEditColor] = useState(COLOR_OPTIONS[0])
   const [editSaving, setEditSaving] = useState(false)
@@ -34,17 +38,22 @@ export default function CategoriasPage() {
   const { toast } = useToast()
   const supabase = createClient()
 
-  const fetchCategories = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
-    const { data } = await supabase.from('categories').select('*').eq('user_id', user.id).order('type').order('name')
-    setCategories((data ?? []) as Category[])
+    const [{ data: cats }, { data: profile }] = await Promise.all([
+      supabase.from('categories').select('*').eq('user_id', user.id).order('type').order('name'),
+      supabase.from('profiles').select('hidden_defaults').eq('id', user.id).maybeSingle(),
+    ])
+    setCategories((cats ?? []) as Category[])
+    setHiddenDefaults((profile?.hidden_defaults ?? []) as string[])
     setLoading(false)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { fetchCategories() }, [fetchCategories])
+  useEffect(() => { fetchAll() }, [fetchAll])
 
+  // --- Create custom category ---
   async function handleCreate() {
     if (!name.trim()) { toast({ title: 'Informe o nome da categoria', variant: 'destructive' }); return }
     setSaving(true)
@@ -53,48 +62,97 @@ export default function CategoriasPage() {
     const { error } = await supabase.from('categories').insert({ user_id: user.id, name: name.trim(), type, color })
     setSaving(false)
     if (error) {
-      toast({ title: error.code === '23505' ? 'Categoria já existe' : 'Erro ao salvar', variant: 'destructive' })
-      return
+      toast({ title: error.code === '23505' ? 'Categoria já existe' : 'Erro ao salvar', variant: 'destructive' }); return
     }
     toast({ title: 'Categoria criada!' })
     setCreateOpen(false)
     setName('')
-    fetchCategories()
+    fetchAll()
+  }
+
+  // --- Edit (custom or default) ---
+  function openEditCustom(cat: Category) {
+    setEditTarget({ cat })
+    setEditName(cat.name)
+    setEditColor(cat.color)
+  }
+
+  function openEditDefault(def: DefaultCat) {
+    setEditTarget({ default: def })
+    setEditName(def.name)
+    setEditColor(def.color)
   }
 
   async function handleEdit() {
-    if (!editCat) return
-    if (!editName.trim()) { toast({ title: 'Informe o nome da categoria', variant: 'destructive' }); return }
-    setEditSaving(true)
-    const { error } = await supabase
-      .from('categories')
-      .update({ name: editName.trim(), color: editColor })
-      .eq('id', editCat.id)
-    setEditSaving(false)
-    if (error) {
-      toast({ title: error.code === '23505' ? 'Categoria já existe' : 'Erro ao salvar', variant: 'destructive' })
-      return
+    if (!editTarget || !editName.trim()) {
+      toast({ title: 'Informe o nome', variant: 'destructive' }); return
     }
+    setEditSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setEditSaving(false); return }
+
+    if (editTarget.cat) {
+      // Edit existing custom category
+      const { error } = await supabase
+        .from('categories')
+        .update({ name: editName.trim(), color: editColor })
+        .eq('id', editTarget.cat.id)
+      setEditSaving(false)
+      if (error) {
+        toast({ title: error.code === '23505' ? 'Categoria já existe' : 'Erro ao salvar', variant: 'destructive' }); return
+      }
+    } else if (editTarget.default) {
+      const originalName = editTarget.default.name
+      const catType = editTarget.default.type
+      // Upsert a custom category with the new name/color
+      const { error } = await supabase.from('categories').upsert(
+        { user_id: user.id, name: editName.trim(), type: catType, color: editColor },
+        { onConflict: 'user_id,name,type' }
+      )
+      if (error) {
+        setEditSaving(false)
+        toast({ title: error.code === '23505' ? 'Categoria já existe' : 'Erro ao salvar', variant: 'destructive' }); return
+      }
+      // Hide the original default
+      if (!hiddenDefaults.includes(originalName)) {
+        const newHidden = [...hiddenDefaults, originalName]
+        await supabase.from('profiles').upsert({ id: user.id, hidden_defaults: newHidden, updated_at: new Date().toISOString() })
+        setHiddenDefaults(newHidden)
+      }
+      setEditSaving(false)
+    }
+
     toast({ title: 'Categoria atualizada!' })
-    setEditCat(null)
-    fetchCategories()
+    setEditTarget(null)
+    fetchAll()
   }
 
-  async function handleDelete(id: string) {
+  // --- Delete custom category ---
+  async function handleDeleteCustom(id: string) {
     const { error } = await supabase.from('categories').delete().eq('id', id)
     if (error) { toast({ title: 'Erro ao excluir', variant: 'destructive' }); return }
     toast({ title: 'Categoria removida' })
     setCategories((prev) => prev.filter((c) => c.id !== id))
   }
 
-  function openEdit(cat: Category) {
-    setEditCat(cat)
-    setEditName(cat.name)
-    setEditColor(cat.color)
+  // --- Delete (hide) default category ---
+  async function handleDeleteDefault(name: string) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const newHidden = [...hiddenDefaults, name]
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id, hidden_defaults: newHidden, updated_at: new Date().toISOString(),
+    })
+    if (error) { toast({ title: 'Erro ao remover', variant: 'destructive' }); return }
+    setHiddenDefaults(newHidden)
+    toast({ title: 'Categoria ocultada' })
   }
 
-  const customIncome = categories.filter((c) => c.type === 'income')
+  // Visible default lists (filter out hidden ones)
+  const visibleExpenseDefs = DEFAULT_EXPENSE_CATEGORIES.filter((c) => !hiddenDefaults.includes(c.name))
+  const visibleIncomeDefs = DEFAULT_INCOME_CATEGORIES.filter((c) => !hiddenDefaults.includes(c.name))
   const customExpense = categories.filter((c) => c.type === 'expense')
+  const customIncome = categories.filter((c) => c.type === 'income')
 
   const ColorPicker = ({ value, onChange }: { value: string; onChange: (c: string) => void }) => (
     <div className="flex flex-wrap gap-2">
@@ -149,9 +207,11 @@ export default function CategoriasPage() {
       </div>
 
       {/* Edit dialog */}
-      <Dialog open={!!editCat} onOpenChange={(o) => !o && setEditCat(null)}>
+      <Dialog open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Editar Categoria</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Editar Categoria</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Nome</Label>
@@ -164,7 +224,7 @@ export default function CategoriasPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditCat(null)} disabled={editSaving}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEditTarget(null)} disabled={editSaving}>Cancelar</Button>
             <Button onClick={handleEdit} disabled={editSaving}>
               {editSaving && <Loader2 className="w-4 h-4 animate-spin" />}Salvar
             </Button>
@@ -179,11 +239,20 @@ export default function CategoriasPage() {
             <CardTitle className="text-base text-expense">Despesas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 p-3 pt-0">
-            {DEFAULT_EXPENSE_CATEGORIES.map((cat) => (
-              <div key={cat.name} className="flex items-center gap-3 px-3 py-2 rounded-lg">
+            {visibleExpenseDefs.map((cat) => (
+              <div key={cat.name} className="flex items-center gap-3 px-3 py-2 rounded-lg group hover:bg-muted/50">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                 <span className="text-sm flex-1">{cat.name}</span>
-                <span className="text-xs text-muted-foreground">padrão</span>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={() => openEditDefault({ name: cat.name, color: cat.color, type: 'expense' })}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
+                    onClick={() => handleDeleteDefault(cat.name)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
             ))}
             {loading ? (
@@ -194,16 +263,19 @@ export default function CategoriasPage() {
                 <span className="text-sm flex-1">{cat.name}</span>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={() => openEdit(cat)}>
+                    onClick={() => openEditCustom(cat)}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
-                    onClick={() => handleDelete(cat.id)}>
+                    onClick={() => handleDeleteCustom(cat.id)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
             ))}
+            {visibleExpenseDefs.length === 0 && customExpense.length === 0 && !loading && (
+              <p className="text-xs text-muted-foreground px-3 py-2">Nenhuma categoria de despesa</p>
+            )}
           </CardContent>
         </Card>
 
@@ -213,11 +285,20 @@ export default function CategoriasPage() {
             <CardTitle className="text-base text-income">Receitas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 p-3 pt-0">
-            {DEFAULT_INCOME_CATEGORIES.map((cat) => (
-              <div key={cat.name} className="flex items-center gap-3 px-3 py-2 rounded-lg">
+            {visibleIncomeDefs.map((cat) => (
+              <div key={cat.name} className="flex items-center gap-3 px-3 py-2 rounded-lg group hover:bg-muted/50">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                 <span className="text-sm flex-1">{cat.name}</span>
-                <span className="text-xs text-muted-foreground">padrão</span>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={() => openEditDefault({ name: cat.name, color: cat.color, type: 'income' })}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
+                    onClick={() => handleDeleteDefault(cat.name)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               </div>
             ))}
             {loading ? (
@@ -228,16 +309,19 @@ export default function CategoriasPage() {
                 <span className="text-sm flex-1">{cat.name}</span>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={() => openEdit(cat)}>
+                    onClick={() => openEditCustom(cat)}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
-                    onClick={() => handleDelete(cat.id)}>
+                    onClick={() => handleDeleteCustom(cat.id)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </div>
             ))}
+            {visibleIncomeDefs.length === 0 && customIncome.length === 0 && !loading && (
+              <p className="text-xs text-muted-foreground px-3 py-2">Nenhuma categoria de receita</p>
+            )}
           </CardContent>
         </Card>
       </div>
