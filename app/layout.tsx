@@ -6,6 +6,11 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Flowz Finance — Controle Financeiro Pessoal',
   description: 'Gerencie suas finanças pessoais com clareza e inteligência',
+  icons: {
+    icon: '/flowz-logo.svg',
+    shortcut: '/flowz-logo.svg',
+    apple: '/flowz-logo.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
