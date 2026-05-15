@@ -75,7 +75,7 @@ export default async function DashboardPage() {
             Resumo financeiro do mês
           </p>
         </div>
-        <TransactionForm onSuccess={() => {}} />
+        <TransactionForm />
       </div>
 
       <SummaryCards summary={{ totalIncome, totalExpense, balance: totalIncome - totalExpense }} />
@@ -97,7 +97,7 @@ export default async function DashboardPage() {
           </a>
         </div>
         <div className="px-1 pb-2">
-          <TransactionList transactions={recentTxs} onRefresh={() => {}} />
+          <TransactionList transactions={recentTxs} />
         </div>
       </div>
     </div>

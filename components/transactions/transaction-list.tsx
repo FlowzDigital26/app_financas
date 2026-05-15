@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Pencil, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,12 +16,13 @@ import {
 
 interface TransactionListProps {
   transactions: Transaction[]
-  onRefresh: () => void
+  onRefresh?: () => void
 }
 
 export function TransactionList({ transactions, onRefresh }: TransactionListProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
 
@@ -35,7 +37,8 @@ export function TransactionList({ transactions, onRefresh }: TransactionListProp
       return
     }
     toast({ title: 'Transação excluída' })
-    onRefresh()
+    router.refresh()
+    onRefresh?.()
   }
 
   if (transactions.length === 0) {

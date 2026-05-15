@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { Plus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,13 +21,14 @@ import {
 
 interface TransactionFormProps {
   transaction?: Transaction
-  onSuccess: () => void
+  onSuccess?: () => void
   trigger?: React.ReactNode
 }
 
 export function TransactionForm({ transaction, onSuccess, trigger }: TransactionFormProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
   const [type, setType] = useState<TransactionType>(transaction?.type ?? 'expense')
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
   const [description, setDescription] = useState(transaction?.description ?? '')
@@ -74,7 +76,8 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
       variant: 'default',
     })
     setOpen(false)
-    onSuccess()
+    router.refresh()
+    onSuccess?.()
 
     if (!isEditing) {
       setAmount('')
