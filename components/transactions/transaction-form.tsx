@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { Plus, Loader2 } from 'lucide-react'
@@ -16,7 +16,9 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import {
-  INCOME_CATEGORIES, EXPENSE_CATEGORIES, type TransactionType, type Transaction,
+  DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES,
+  PAYMENT_METHODS,
+  type TransactionType, type Transaction, type Category, type PaymentMethod,
 } from '@/types'
 
 interface TransactionFormProps {
@@ -28,63 +30,90 @@ interface TransactionFormProps {
 export function TransactionForm({ transaction, onSuccess, trigger }: TransactionFormProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [customCategories, setCustomCategories] = useState<Category[]>([])
   const router = useRouter()
   const [type, setType] = useState<TransactionType>(transaction?.type ?? 'expense')
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
   const [description, setDescription] = useState(transaction?.description ?? '')
   const [category, setCategory] = useState(transaction?.category ?? '')
   const [date, setDate] = useState(transaction?.date ?? format(new Date(), 'yyyy-MM-dd'))
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(transaction?.payment_method ?? 'pix')
+  const [bank, setBank] = useState(transaction?.bank ?? '')
   const { toast } = useToast()
   const supabase = createClient()
-
-  const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
   const isEditing = !!transaction
+
+  // Load custom categories
+  useEffect(() => {
+    if (!open) return
+    async function loadCategories() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name')
+      setCustomCategories((data ?? []) as Category[])
+    }
+    loadCategories()
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build categories list: defaults + custom, filtered by type
+  const defaultCats = type === 'income'
+    ? DEFAULT_INCOME_CATEGORIES.map((c) => c.name)
+    : DEFAULT_EXPENSE_CATEGORIES.map((c) => c.name)
+  const customCats = customCategories
+    .filter((c) => c.type === type)
+    .map((c) => c.name)
+  const allCategories = [...defaultCats, ...customCats]
+
+  function resetForm() {
+    setType('expense')
+    setAmount('')
+    setDescription('')
+    setCategory('')
+    setDate(format(new Date(), 'yyyy-MM-dd'))
+    setPaymentMethod('pix')
+    setBank('')
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!amount || !description || !category || !date) {
-      toast({ title: 'Preencha todos os campos', variant: 'destructive' })
+      toast({ title: 'Preencha todos os campos obrigatórios', variant: 'destructive' })
       return
     }
-
     const parsedAmount = parseFloat(amount.replace(',', '.'))
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       toast({ title: 'Valor inválido', variant: 'destructive' })
       return
     }
-
     setLoading(true)
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const payload = { type, amount: parsedAmount, description, category, date, user_id: user.id }
+    const payload = {
+      type, amount: parsedAmount, description, category, date,
+      payment_method: paymentMethod,
+      bank: bank.trim() || null,
+      user_id: user.id,
+    }
 
     const { error } = isEditing
       ? await supabase.from('transactions').update(payload).eq('id', transaction.id)
       : await supabase.from('transactions').insert(payload)
 
     setLoading(false)
-
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' })
       return
     }
-
-    toast({
-      title: isEditing ? 'Transação atualizada!' : 'Transação registrada!',
-      variant: 'default',
-    })
+    toast({ title: isEditing ? 'Transação atualizada!' : 'Transação registrada!' })
     setOpen(false)
     router.refresh()
     onSuccess?.()
-
-    if (!isEditing) {
-      setAmount('')
-      setDescription('')
-      setCategory('')
-      setDate(format(new Date(), 'yyyy-MM-dd'))
-    }
+    if (!isEditing) resetForm()
   }
 
   return (
@@ -97,7 +126,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
         </DialogHeader>
@@ -105,18 +134,13 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
           {/* Type toggle */}
           <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
             {(['expense', 'income'] as TransactionType[]).map((t) => (
-              <button
-                key={t}
-                type="button"
+              <button key={t} type="button"
                 onClick={() => { setType(t); setCategory('') }}
                 className={`py-2 px-3 rounded-md text-sm font-medium transition-all ${
                   type === t
-                    ? t === 'income'
-                      ? 'bg-income text-white shadow-sm'
-                      : 'bg-expense text-white shadow-sm'
+                    ? t === 'income' ? 'bg-income text-white shadow-sm' : 'bg-expense text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
+                }`}>
                 {t === 'income' ? 'Receita' : 'Despesa'}
               </button>
             ))}
@@ -124,65 +148,61 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="amount">Valor (R$)</Label>
-              <Input
-                id="amount"
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
+              <Label htmlFor="amount">Valor (R$) *</Label>
+              <Input id="amount" inputMode="decimal" placeholder="0,00" value={amount}
+                onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="date">Data</Label>
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
+              <Label htmlFor="date">Data *</Label>
+              <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="description">Descrição</Label>
-            <Input
-              id="description"
-              placeholder="Ex: Almoço no restaurante"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Label htmlFor="description">Descrição *</Label>
+            <Input id="description" placeholder="Ex: Almoço no restaurante" value={description}
+              onChange={(e) => setDescription(e.target.value)} />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Categoria</Label>
+            <Label>Categoria *</Label>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma categoria" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((cat) => (
+                {allCategories.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
+          <div className="space-y-1.5">
+            <Label>Forma de Pagamento</Label>
+            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYMENT_METHODS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="bank">Banco / Origem</Label>
+            <Input id="bank" placeholder="Ex: Nubank, Bradesco, Itaú..." value={bank}
+              onChange={(e) => setBank(e.target.value)} />
+          </div>
+
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={loading}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              variant={type === 'income' ? 'income' : 'expense'}
-              disabled={loading}
-            >
+            <Button type="submit" variant={type === 'income' ? 'income' : 'expense'} disabled={loading}>
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditing ? 'Salvar' : 'Adicionar'}
             </Button>

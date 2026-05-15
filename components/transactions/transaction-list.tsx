@@ -9,17 +9,22 @@ import { TransactionForm } from './transaction-form'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { CATEGORY_COLORS, type Transaction } from '@/types'
+import { CATEGORY_COLORS, PAYMENT_METHODS, type Transaction } from '@/types'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
 
+const PAYMENT_LABEL: Record<string, string> = Object.fromEntries(
+  PAYMENT_METHODS.map((p) => [p.value, p.label])
+)
+
 interface TransactionListProps {
   transactions: Transaction[]
   onRefresh?: () => void
+  showPaymentInfo?: boolean
 }
 
-export function TransactionList({ transactions, onRefresh }: TransactionListProps) {
+export function TransactionList({ transactions, onRefresh, showPaymentInfo }: TransactionListProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
@@ -59,6 +64,7 @@ export function TransactionList({ transactions, onRefresh }: TransactionListProp
         {transactions.map((tx, i) => {
           const isIncome = tx.type === 'income'
           const catColor = CATEGORY_COLORS[tx.category] ?? '#94a3b8'
+          const paymentLabel = tx.payment_method ? PAYMENT_LABEL[tx.payment_method] : null
           return (
             <div
               key={tx.id}
@@ -79,7 +85,7 @@ export function TransactionList({ transactions, onRefresh }: TransactionListProp
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{tx.description}</p>
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span className="text-xs text-muted-foreground">{formatDate(tx.date)}</span>
                   <Badge
                     variant="outline"
@@ -88,6 +94,11 @@ export function TransactionList({ transactions, onRefresh }: TransactionListProp
                   >
                     {tx.category}
                   </Badge>
+                  {showPaymentInfo && paymentLabel && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {paymentLabel}{tx.bank ? ` · ${tx.bank}` : ''}
+                    </span>
+                  )}
                 </div>
               </div>
 

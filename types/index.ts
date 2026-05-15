@@ -1,5 +1,24 @@
 export type TransactionType = 'income' | 'expense'
 
+export type PaymentMethod =
+  | 'pix'
+  | 'boleto'
+  | 'cartao_credito'
+  | 'debito'
+  | 'dinheiro'
+  | 'transferencia'
+  | 'outros'
+
+export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'pix', label: 'PIX' },
+  { value: 'debito', label: 'Débito' },
+  { value: 'cartao_credito', label: 'Cartão de Crédito' },
+  { value: 'transferencia', label: 'Transferência' },
+  { value: 'boleto', label: 'Boleto' },
+  { value: 'dinheiro', label: 'Dinheiro' },
+  { value: 'outros', label: 'Outros' },
+]
+
 export interface Transaction {
   id: string
   user_id: string
@@ -8,6 +27,8 @@ export interface Transaction {
   description: string
   category: string
   date: string
+  payment_method?: PaymentMethod
+  bank?: string
   created_at: string
 }
 
@@ -17,6 +38,8 @@ export interface TransactionInsert {
   description: string
   category: string
   date: string
+  payment_method?: PaymentMethod
+  bank?: string
 }
 
 export interface Category {
@@ -26,6 +49,13 @@ export interface Category {
   type: TransactionType
   color: string
   created_at: string
+}
+
+export interface Profile {
+  id: string
+  full_name?: string
+  phone?: string
+  updated_at: string
 }
 
 export interface Goal {
@@ -93,7 +123,6 @@ export const DEFAULT_EXPENSE_CATEGORIES = [
   { name: 'Outros', color: '#94a3b8' },
 ] as const
 
-// Legacy exports for backward compat
 export const INCOME_CATEGORIES = DEFAULT_INCOME_CATEGORIES.map((c) => c.name)
 export const EXPENSE_CATEGORIES = DEFAULT_EXPENSE_CATEGORIES.map((c) => c.name)
 

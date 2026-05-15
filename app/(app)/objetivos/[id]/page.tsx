@@ -8,7 +8,6 @@ import { ArrowLeft, Plus, Minus, Pencil, Trash2, CheckCircle2, Loader2 } from 'l
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { GoalProgressRing } from '@/components/goals/goal-progress-ring'
-import { GoalIcon } from '@/components/goals/goal-icon'
 import { GoalForm } from '@/components/goals/goal-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -150,9 +149,6 @@ export default function GoalDetailPage() {
           <CardContent className="p-6 flex flex-col items-center gap-6">
             <div className="relative">
               <GoalProgressRing percentage={percentage} size={180} strokeWidth={16} color={goal.color} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <GoalIcon icon={goal.icon} color={goal.color} size="sm" />
-              </div>
             </div>
 
             {goal.completed_at && (
