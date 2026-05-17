@@ -17,21 +17,25 @@ const CustomTooltip = ({ active, payload, label }: {
   payload?: Array<{ name: string; value: number; fill: string }>
   label?: string
 }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-card border border-border rounded-xl p-3 shadow-md text-sm space-y-1">
-        <p className="font-semibold capitalize text-foreground">{label}</p>
-        {payload.map((p) => (
-          <div key={p.name} className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.fill }} />
-            <span className="text-muted-foreground capitalize">{p.name}:</span>
-            <span className="font-medium">{formatCurrency(p.value)}</span>
-          </div>
-        ))}
-      </div>
-    )
-  }
-  return null
+  if (!active || !payload?.length) return null
+  return (
+    <div
+      className="rounded-xl p-3 shadow-xl text-sm space-y-1.5"
+      style={{
+        background: 'hsl(var(--primary))',
+        border: '1px solid hsl(var(--accent) / 0.35)',
+      }}
+    >
+      <p className="font-semibold capitalize" style={{ color: 'hsl(var(--accent))' }}>{label}</p>
+      {payload.map((p) => (
+        <div key={p.name} className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.fill }} />
+          <span style={{ color: 'hsl(var(--accent) / 0.7)' }} className="capitalize">{p.name}:</span>
+          <span className="font-medium text-white">{formatCurrency(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export function MonthlyChart({ data }: MonthlyChartProps) {
@@ -62,7 +66,11 @@ export function MonthlyChart({ data }: MonthlyChartProps) {
                 tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
                 width={50}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip
+                content={<CustomTooltip />}
+                wrapperStyle={{ outline: 'none' }}
+                cursor={{ fill: 'hsl(var(--accent) / 0.06)' }}
+              />
               <Legend
                 iconType="circle"
                 iconSize={8}

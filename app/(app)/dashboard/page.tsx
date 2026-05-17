@@ -4,9 +4,9 @@ import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { SummaryCards } from '@/components/dashboard/summary-cards'
 import { MonthlyChart } from '@/components/dashboard/monthly-chart'
+import { LiveDate } from '@/components/dashboard/live-date'
 import { TransactionList } from '@/components/transactions/transaction-list'
 import { TransactionForm } from '@/components/transactions/transaction-form'
-import { ExportButton } from '@/components/export/export-button'
 import { type Transaction, type MonthlyData } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +21,7 @@ export default async function HomePage() {
   const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd')
   const monthLabel = format(now, "MMMM 'de' yyyy", { locale: ptBR })
 
-  // This month's transactions
+  // This month's transactions — sorted by date desc, then created_at desc
   const { data: monthTxs = [] } = await supabase
     .from('transactions')
     .select('*')
@@ -29,6 +29,7 @@ export default async function HomePage() {
     .gte('date', monthStart)
     .lte('date', monthEnd)
     .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
 
   const transactions = (monthTxs ?? []) as Transaction[]
   const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
@@ -56,15 +57,14 @@ export default async function HomePage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-display font-semibold capitalize">
-            {monthLabel}
+          <h1 className="text-2xl md:text-3xl font-display font-semibold">
+            <LiveDate />
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Resumo financeiro do mês</p>
+          <p className="text-sm text-muted-foreground mt-0.5 capitalize">
+            Resumo financeiro · {monthLabel}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <ExportButton userId={user.id} />
-          <TransactionForm />
-        </div>
+        <TransactionForm />
       </div>
 
       {/* Summary cards */}

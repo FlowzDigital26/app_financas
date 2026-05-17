@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 const navItems = [
-  { href: '/dashboard',     label: 'Home',          icon: LayoutDashboard },
+  { href: '/dashboard',     label: 'Visão Geral',   icon: LayoutDashboard },
   { href: '/extrato',       label: 'Extrato',        icon: FileText },
   { href: '/objetivos',     label: 'Objetivos',      icon: Target },
   { href: '/categorias',    label: 'Categorias',     icon: Tags },
@@ -21,7 +21,7 @@ const navItems = [
 ]
 
 const mobileNavItems = [
-  { href: '/dashboard',   label: 'Home',     icon: LayoutDashboard },
+  { href: '/dashboard',   label: 'Visão',    icon: LayoutDashboard },
   { href: '/extrato',     label: 'Extrato',  icon: FileText },
   { href: '/assinaturas', label: 'Assin.',   icon: Repeat2 },
   { href: '/objetivos',   label: 'Metas',    icon: Target },
@@ -62,7 +62,7 @@ export function Sidebar() {
 
   return (
     <aside className={cn(
-      'hidden lg:flex flex-col min-h-screen bg-primary text-primary-foreground shrink-0 transition-all duration-300',
+      'hidden lg:flex flex-col h-screen sticky top-0 bg-primary text-primary-foreground shrink-0 transition-all duration-300',
       collapsed ? 'w-16' : 'w-60'
     )}>
       {/* Logo */}
@@ -79,7 +79,7 @@ export function Sidebar() {
       <div className="px-3"><div className="h-px bg-primary-foreground/10" /></div>
 
       {/* Main nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {/* MENU label + collapse toggle */}
         <div className={cn('flex items-center mb-3', collapsed ? 'justify-center' : 'justify-between px-1')}>
           {!collapsed && (
