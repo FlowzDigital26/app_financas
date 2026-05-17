@@ -4,16 +4,28 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, FileText, Target, Tags, LogOut, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  LayoutDashboard, FileText, Target, Tags, LogOut,
+  ChevronLeft, ChevronRight, Repeat2, Settings,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 const navItems = [
-  { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
-  { href: '/extrato', label: 'Extrato', icon: FileText },
-  { href: '/objetivos', label: 'Objetivos', icon: Target },
-  { href: '/categorias', label: 'Categorias', icon: Tags },
+  { href: '/dashboard',     label: 'Home',          icon: LayoutDashboard },
+  { href: '/extrato',       label: 'Extrato',        icon: FileText },
+  { href: '/objetivos',     label: 'Objetivos',      icon: Target },
+  { href: '/categorias',    label: 'Categorias',     icon: Tags },
+  { href: '/assinaturas',   label: 'Assinaturas',    icon: Repeat2 },
+]
+
+const mobileNavItems = [
+  { href: '/dashboard',   label: 'Home',     icon: LayoutDashboard },
+  { href: '/extrato',     label: 'Extrato',  icon: FileText },
+  { href: '/assinaturas', label: 'Assin.',   icon: Repeat2 },
+  { href: '/objetivos',   label: 'Metas',    icon: Target },
+  { href: '/configuracoes', label: 'Config', icon: Settings },
 ]
 
 export function Sidebar() {
@@ -39,12 +51,21 @@ export function Sidebar() {
     router.refresh()
   }
 
+  const linkClass = (href: string) =>
+    cn(
+      'flex items-center rounded-lg text-sm font-medium transition-all',
+      collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5',
+      pathname === href
+        ? 'bg-accent text-white shadow-sm'
+        : 'text-primary-foreground/60 hover:text-accent hover:bg-accent/15'
+    )
+
   return (
     <aside className={cn(
       'hidden lg:flex flex-col min-h-screen bg-primary text-primary-foreground shrink-0 transition-all duration-300',
       collapsed ? 'w-16' : 'w-60'
     )}>
-      {/* Logo area */}
+      {/* Logo */}
       <div className={cn('py-5 flex items-center', collapsed ? 'px-3 justify-center' : 'px-5')}>
         {collapsed ? (
           <div className="w-8 h-8 flex items-center justify-center">
@@ -55,21 +76,14 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className="px-3">
-        <div className="h-px bg-primary-foreground/10" />
-      </div>
+      <div className="px-3"><div className="h-px bg-primary-foreground/10" /></div>
 
-      {/* Nav */}
+      {/* Main nav */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {/* MENU label + collapse toggle */}
-        <div className={cn(
-          'flex items-center mb-3',
-          collapsed ? 'justify-center' : 'justify-between px-1'
-        )}>
+        <div className={cn('flex items-center mb-3', collapsed ? 'justify-center' : 'justify-between px-1')}>
           {!collapsed && (
-            <p className="text-xs font-medium tracking-wider uppercase text-primary-foreground/40">
-              Menu
-            </p>
+            <p className="text-xs font-medium tracking-wider uppercase text-primary-foreground/40">Menu</p>
           )}
           <button
             onClick={toggleCollapse}
@@ -80,49 +94,44 @@ export function Sidebar() {
           </button>
         </div>
 
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={collapsed ? label : undefined}
-              className={cn(
-                'flex items-center rounded-lg text-sm font-medium transition-all',
-                collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2.5',
-                active
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-primary-foreground/60 hover:text-accent hover:bg-accent/15'
-              )}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {!collapsed && label}
-            </Link>
-          )
-        })}
+        {navItems.map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} title={collapsed ? label : undefined} className={linkClass(href)}>
+            <Icon className="w-4 h-4 shrink-0" />
+            {!collapsed && label}
+          </Link>
+        ))}
       </nav>
 
-      {/* Bottom */}
-      <div className={cn('pb-6 space-y-1', collapsed ? 'px-2' : 'px-3')}>
+      {/* Bottom controls — always visible, inside scroll area */}
+      <div className={cn('px-3 pb-6 space-y-1')}>
         <div className="h-px bg-primary-foreground/10 mb-3" />
 
+        {/* Configurações */}
+        <Link
+          href="/configuracoes"
+          title={collapsed ? 'Configurações' : undefined}
+          className={linkClass('/configuracoes')}
+        >
+          <Settings className="w-4 h-4 shrink-0" />
+          {!collapsed && 'Configurações'}
+        </Link>
+
+        {/* Tema */}
         <ThemeToggle
           className={cn(
-            'text-primary-foreground/60 hover:text-accent hover:bg-accent/15 w-full',
-            collapsed ? 'justify-center px-0' : 'justify-start gap-3 px-2'
+            'text-primary-foreground/60 hover:text-accent hover:bg-accent/15 w-full rounded-lg py-2.5 text-sm font-medium transition-all',
+            collapsed ? 'justify-center px-0' : 'justify-start gap-3 px-3'
           )}
+          label={collapsed ? undefined : 'Tema'}
         />
 
-        {!collapsed && (
-          <span className="hidden" />
-        )}
-
+        {/* Sair */}
         <button
           onClick={handleSignOut}
           title={collapsed ? 'Sair' : undefined}
           className={cn(
-            'flex items-center w-full rounded-lg py-2.5 text-sm font-medium text-primary-foreground/60 hover:text-accent hover:bg-accent/15 transition-colors',
-            collapsed ? 'justify-center px-0' : 'gap-3 px-2'
+            'flex items-center w-full rounded-lg py-2.5 text-sm font-medium text-primary-foreground/60 hover:text-expense hover:bg-expense/10 transition-colors',
+            collapsed ? 'justify-center px-0' : 'gap-3 px-3'
           )}
         >
           <LogOut className="w-4 h-4 shrink-0" />
@@ -139,7 +148,7 @@ export function MobileNav() {
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border">
       <div className="flex">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {mobileNavItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href
           return (
             <Link

@@ -24,6 +24,7 @@ import { useToast } from '@/components/ui/use-toast'
 
 type TabType = 'expense' | 'income'
 type FilterType = 'all' | 'income' | 'expense'
+type SortBy = 'date_desc' | 'date_asc' | 'amount_desc' | 'amount_asc' | 'created_desc'
 
 function buildPeriods() {
   const now = new Date()
@@ -113,6 +114,7 @@ export default function ExtratoPage() {
   const [filterPayment, setFilterPayment] = useState<string>('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterBank, setFilterBank] = useState('')
+  const [sortBy, setSortBy] = useState<SortBy>('date_desc')
 
   // CSV import
   const [importOpen, setImportOpen] = useState(false)
@@ -173,14 +175,24 @@ export default function ExtratoPage() {
     .map(([name, value]) => ({ name, value, color: CATEGORY_COLORS[name] ?? '#94a3b8' }))
     .sort((a, b) => b.value - a.value)
 
-  // Filtered transaction list
-  const listFiltered = transactions.filter((t) => {
-    if (filterType !== 'all' && t.type !== filterType) return false
-    if (filterPayment !== 'all' && (t.payment_method ?? 'outros') !== filterPayment) return false
-    if (filterCategory !== 'all' && t.category !== filterCategory) return false
-    if (filterBank && !t.bank?.toLowerCase().includes(filterBank.toLowerCase())) return false
-    return true
-  })
+  // Filtered + sorted transaction list
+  const listFiltered = transactions
+    .filter((t) => {
+      if (filterType !== 'all' && t.type !== filterType) return false
+      if (filterPayment !== 'all' && (t.payment_method ?? 'outros') !== filterPayment) return false
+      if (filterCategory !== 'all' && t.category !== filterCategory) return false
+      if (filterBank && !t.bank?.toLowerCase().includes(filterBank.toLowerCase())) return false
+      return true
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'date_asc':   return a.date.localeCompare(b.date)
+        case 'amount_desc': return b.amount - a.amount
+        case 'amount_asc':  return a.amount - b.amount
+        case 'created_desc': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        default:           return b.date.localeCompare(a.date) // date_desc
+      }
+    })
 
   // All categories in the period for the filter dropdown
   const allCats = Array.from(new Set(transactions.map((t) => t.category))).sort()
@@ -447,6 +459,20 @@ export default function ExtratoPage() {
                 </button>
               )}
             </div>
+
+            {/* Sort */}
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
+              <SelectTrigger className="h-7 text-xs w-[160px]">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date_desc">Data: mais recente</SelectItem>
+                <SelectItem value="date_asc">Data: mais antiga</SelectItem>
+                <SelectItem value="amount_desc">Valor: maior primeiro</SelectItem>
+                <SelectItem value="amount_asc">Valor: menor primeiro</SelectItem>
+                <SelectItem value="created_desc">Ordem de cadastro</SelectItem>
+              </SelectContent>
+            </Select>
 
             {/* Clear filters */}
             {(filterType !== 'all' || filterPayment !== 'all' || filterCategory !== 'all' || filterBank) && (
