@@ -130,7 +130,7 @@ export default function AssinaturasPage() {
       .order('date', { ascending: false })
 
     // Group by description
-    const grouped: Record<string, typeof data[0][]> = {}
+    const grouped: Record<string, any[]> = {}
     for (const tx of data ?? []) {
       const key = tx.description.trim().toLowerCase()
       grouped[key] = grouped[key] ?? []
