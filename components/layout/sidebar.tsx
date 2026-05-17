@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 const navItems = [
-  { href: '/', label: 'Home', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { href: '/extrato', label: 'Extrato', icon: FileText },
   { href: '/objetivos', label: 'Objetivos', icon: Target },
   { href: '/categorias', label: 'Categorias', icon: Tags },

@@ -4,8 +4,8 @@ import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Flowz Finance — Controle Financeiro Pessoal',
-  description: 'Gerencie suas finanças pessoais com clareza e inteligência',
+  title: 'Flowz Finance — Controle Financeiro Inteligente',
+  description: 'Organize receitas, despesas e objetivos financeiros de forma simples, bonita e intuitiva. Gratuito e seguro.',
   icons: {
     icon: '/flowz-logo.svg',
     shortcut: '/flowz-logo.svg',

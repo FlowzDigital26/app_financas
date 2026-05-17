@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\app_financas\"; $env:NEXT_PUBLIC_SUPABASE_URL=\"https://placeholder.supabase.co\"; $env:NEXT_PUBLIC_SUPABASE_ANON_KEY=\"placeholder\"; npx next build 2>&1 | Select-Object -Last 40)",
+      "PowerShell(cd \"C:\\\\Users\\\\Usuario\\\\Desktop\\\\app_financas\"; $env:NEXT_PUBLIC_SUPABASE_URL=\"https://placeholder.supabase.co\"; $env:NEXT_PUBLIC_SUPABASE_ANON_KEY=\"placeholder\"; npx next build 2>&1 | Select-Object -Last 50)",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'feat: set Flowz SVG as favicon \\(icon, shortcut, apple-touch\\) *)"
+    ]
+  }
+}
