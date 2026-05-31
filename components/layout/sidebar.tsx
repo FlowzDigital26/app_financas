@@ -6,27 +6,28 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, FileText, Target, Tags, LogOut,
-  ChevronLeft, ChevronRight, Repeat2, Settings, Bot,
+  ChevronLeft, ChevronRight, Repeat2, Settings, Bot, FileUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 const navItems = [
-  { href: '/dashboard',     label: 'Visão Geral',   icon: LayoutDashboard },
-  { href: '/extrato',       label: 'Extrato',        icon: FileText },
-  { href: '/objetivos',     label: 'Objetivos',      icon: Target },
-  { href: '/categorias',    label: 'Categorias',     icon: Tags },
-  { href: '/assinaturas',   label: 'Assinaturas',    icon: Repeat2 },
-  { href: '/assessor',      label: 'Assessor IA',    icon: Bot },
+  { href: '/dashboard',        label: 'Visão Geral',    icon: LayoutDashboard },
+  { href: '/extrato',          label: 'Extrato',         icon: FileText },
+  { href: '/importar-extrato', label: 'Importar PDF',    icon: FileUp },
+  { href: '/objetivos',        label: 'Objetivos',       icon: Target },
+  { href: '/categorias',       label: 'Categorias',      icon: Tags },
+  { href: '/assinaturas',      label: 'Assinaturas',     icon: Repeat2 },
+  { href: '/assessor',         label: 'Assessor IA',     icon: Bot },
 ]
 
 const mobileNavItems = [
-  { href: '/dashboard',     label: 'Visão',    icon: LayoutDashboard },
-  { href: '/extrato',       label: 'Extrato',  icon: FileText },
-  { href: '/assessor',      label: 'Assessor', icon: Bot },
-  { href: '/objetivos',     label: 'Metas',    icon: Target },
-  { href: '/configuracoes', label: 'Config',   icon: Settings },
+  { href: '/dashboard',        label: 'Visão',    icon: LayoutDashboard },
+  { href: '/extrato',          label: 'Extrato',  icon: FileText },
+  { href: '/importar-extrato', label: 'Importar', icon: FileUp },
+  { href: '/assessor',         label: 'Assessor', icon: Bot },
+  { href: '/configuracoes',    label: 'Config',   icon: Settings },
 ]
 
 export function Sidebar() {
