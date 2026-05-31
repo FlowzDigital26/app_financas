@@ -150,3 +150,14 @@ export const GOAL_COLORS = [
 ] as const
 
 export type FilterPeriod = '7d' | '30d' | '90d' | 'custom'
+
+export interface BudgetConfig {
+  id: string
+  user_id: string
+  monthly_salary: number
+  savings_goal: number
+  investment_goal: number
+  category_budgets: Record<string, number>
+  updated_at: string
+  created_at: string
+}

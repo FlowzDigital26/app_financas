@@ -4,10 +4,11 @@ import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { SummaryCards } from '@/components/dashboard/summary-cards'
 import { MonthlyChart } from '@/components/dashboard/monthly-chart'
+import { BudgetCard } from '@/components/dashboard/budget-card'
 import { LiveDate } from '@/components/dashboard/live-date'
 import { TransactionList } from '@/components/transactions/transaction-list'
 import { TransactionForm } from '@/components/transactions/transaction-form'
-import { type Transaction, type MonthlyData } from '@/types'
+import { type Transaction, type MonthlyData, type BudgetConfig } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,19 +22,45 @@ export default async function HomePage() {
   const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd')
   const monthLabel = format(now, "MMMM 'de' yyyy", { locale: ptBR })
 
-  // This month's transactions — sorted by date desc, then created_at desc
-  const { data: monthTxs = [] } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('user_id', user.id)
-    .gte('date', monthStart)
-    .lte('date', monthEnd)
-    .order('date', { ascending: false })
-    .order('created_at', { ascending: false })
+  // This month's transactions + budget config in parallel
+  const [{ data: monthTxs = [] }, { data: budgetData }] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('date', monthStart)
+      .lte('date', monthEnd)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('user_budget_config')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
 
   const transactions = (monthTxs ?? []) as Transaction[]
   const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const totalExpense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+
+  // Per-category actual spending this month (for budget comparison)
+  const categoryActual: Record<string, number> = {}
+  transactions.filter((t) => t.type === 'expense').forEach((t) => {
+    categoryActual[t.category] = (categoryActual[t.category] ?? 0) + t.amount
+  })
+
+  const budgetConfig: BudgetConfig = budgetData
+    ? (budgetData as unknown as BudgetConfig)
+    : {
+        id: '',
+        user_id: user.id,
+        monthly_salary: 0,
+        savings_goal: 0,
+        investment_goal: 0,
+        category_budgets: {},
+        updated_at: '',
+        created_at: '',
+      }
 
   // Monthly chart — last 6 months
   const monthlyData: MonthlyData[] = []
@@ -69,6 +96,14 @@ export default async function HomePage() {
 
       {/* Summary cards */}
       <SummaryCards summary={{ totalIncome, totalExpense, balance: totalIncome - totalExpense }} />
+
+      {/* Budget card */}
+      <BudgetCard
+        config={budgetConfig}
+        categoryActual={categoryActual}
+        totalIncome={totalIncome}
+        totalExpense={totalExpense}
+      />
 
       {/* Monthly chart full width */}
       <MonthlyChart data={monthlyData} />

@@ -22,11 +22,11 @@ const navItems = [
 ]
 
 const mobileNavItems = [
-  { href: '/dashboard',   label: 'Visão',     icon: LayoutDashboard },
-  { href: '/extrato',     label: 'Extrato',   icon: FileText },
-  { href: '/assinaturas', label: 'Assin.',    icon: Repeat2 },
-  { href: '/objetivos',   label: 'Metas',     icon: Target },
-  { href: '/assessor',    label: 'Assessor',  icon: Bot },
+  { href: '/dashboard',     label: 'Visão',    icon: LayoutDashboard },
+  { href: '/extrato',       label: 'Extrato',  icon: FileText },
+  { href: '/assessor',      label: 'Assessor', icon: Bot },
+  { href: '/objetivos',     label: 'Metas',    icon: Target },
+  { href: '/configuracoes', label: 'Config',   icon: Settings },
 ]
 
 export function Sidebar() {
