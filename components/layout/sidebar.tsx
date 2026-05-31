@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, FileText, Target, Tags, LogOut,
-  ChevronLeft, ChevronRight, Repeat2, Settings,
+  ChevronLeft, ChevronRight, Repeat2, Settings, Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -18,14 +18,15 @@ const navItems = [
   { href: '/objetivos',     label: 'Objetivos',      icon: Target },
   { href: '/categorias',    label: 'Categorias',     icon: Tags },
   { href: '/assinaturas',   label: 'Assinaturas',    icon: Repeat2 },
+  { href: '/assessor',      label: 'Assessor IA',    icon: Bot },
 ]
 
 const mobileNavItems = [
-  { href: '/dashboard',   label: 'Visão',    icon: LayoutDashboard },
-  { href: '/extrato',     label: 'Extrato',  icon: FileText },
-  { href: '/assinaturas', label: 'Assin.',   icon: Repeat2 },
-  { href: '/objetivos',   label: 'Metas',    icon: Target },
-  { href: '/configuracoes', label: 'Config', icon: Settings },
+  { href: '/dashboard',   label: 'Visão',     icon: LayoutDashboard },
+  { href: '/extrato',     label: 'Extrato',   icon: FileText },
+  { href: '/assinaturas', label: 'Assin.',    icon: Repeat2 },
+  { href: '/objetivos',   label: 'Metas',     icon: Target },
+  { href: '/assessor',    label: 'Assessor',  icon: Bot },
 ]
 
 export function Sidebar() {
