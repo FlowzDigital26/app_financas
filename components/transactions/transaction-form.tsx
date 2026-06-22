@@ -39,6 +39,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
   )
   const type: TransactionType = kind === 'renda' ? 'income' : 'expense'
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
+  const [name, setName] = useState(transaction?.name ?? transaction?.description ?? '')
   const [description, setDescription] = useState(transaction?.description ?? '')
   const [category, setCategory] = useState(transaction?.category ?? '')
   const [subcategory, setSubcategory] = useState(transaction?.subcategory ?? '')
@@ -84,6 +85,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
   function resetForm() {
     setKind('variavel')
     setAmount('')
+    setName('')
     setDescription('')
     setCategory('')
     setSubcategory('')
@@ -110,7 +112,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!amount || !description || !category || !date) {
+    if (!amount || !name || !category || !date) {
       toast({ title: 'Preencha todos os campos obrigatórios', variant: 'destructive' })
       return
     }
@@ -124,7 +126,10 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
     if (!user) { setLoading(false); return }
 
     const payload = {
-      type, kind, amount: parsedAmount, description, category,
+      type, kind, amount: parsedAmount,
+      name: name.trim(),
+      description: description.trim() || name.trim(),
+      category,
       subcategory: subcategory || null,
       date,
       payment_method: paymentMethod,
@@ -242,8 +247,14 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="description">Descrição *</Label>
-            <Input id="description" placeholder="Ex: Almoço no restaurante" value={description}
+            <Label htmlFor="name">Nome *</Label>
+            <Input id="name" placeholder="Ex: Almoço no restaurante" value={name}
+              onChange={(e) => setName(e.target.value)} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Descrição <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+            <Input id="description" placeholder="Detalhes adicionais" value={description}
               onChange={(e) => setDescription(e.target.value)} />
           </div>
 

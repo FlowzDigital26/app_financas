@@ -132,7 +132,7 @@ export default function AssinaturasPage() {
     // Group by description
     const grouped: Record<string, any[]> = {}
     for (const tx of data ?? []) {
-      const key = tx.description.trim().toLowerCase()
+      const key = (tx.name || tx.description).trim().toLowerCase()
       grouped[key] = grouped[key] ?? []
       grouped[key].push(tx)
     }
@@ -141,7 +141,7 @@ export default function AssinaturasPage() {
       const latest = txs[0] // already sorted desc
       return {
         id: latest.id,
-        name: latest.description,
+        name: latest.name || latest.description,
         amount: latest.amount,
         cycle: 'monthly',
         paymentMethod: latest.payment_method,

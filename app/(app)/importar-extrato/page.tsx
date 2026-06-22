@@ -128,6 +128,7 @@ export default function ImportarExtratoPage() {
         user_id: user.id,
         type: t.type,
         amount: t.amount,
+        name: t.description,
         description: t.description,
         category: t.category,
         date: t.date,

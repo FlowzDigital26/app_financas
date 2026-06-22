@@ -84,7 +84,7 @@ export function TransactionList({ transactions, onRefresh, showPaymentInfo }: Tr
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{tx.description}</p>
+                <p className="text-sm font-medium truncate">{tx.name || tx.description}</p>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span className="text-xs text-muted-foreground">{formatDate(tx.date)}</span>
                   <Badge

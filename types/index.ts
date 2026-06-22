@@ -25,6 +25,7 @@ export interface Transaction {
   type: TransactionType
   kind?: PlanKind | null
   amount: number
+  name?: string | null
   description: string
   category: string
   subcategory?: string | null
@@ -38,6 +39,7 @@ export interface TransactionInsert {
   type: TransactionType
   kind?: PlanKind | null
   amount: number
+  name?: string | null
   description: string
   category: string
   subcategory?: string | null

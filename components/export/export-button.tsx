@@ -32,12 +32,14 @@ export function ExportButton({ userId }: ExportButtonProps) {
       return
     }
 
-    const headers = ['Data', 'Tipo', 'Descrição', 'Categoria', 'Valor (R$)']
+    const headers = ['Data', 'Tipo', 'Nome', 'Descrição', 'Categoria', 'Subcategoria', 'Valor (R$)']
     const rows = transactions.map((t) => [
       format(new Date(t.date + 'T00:00:00'), 'dd/MM/yyyy'),
       t.type === 'income' ? 'Receita' : 'Despesa',
-      `"${t.description.replace(/"/g, '""')}"`,
+      `"${(t.name ?? t.description ?? '').replace(/"/g, '""')}"`,
+      `"${(t.description ?? '').replace(/"/g, '""')}"`,
       t.category,
+      t.subcategory ?? '',
       t.amount.toFixed(2).replace('.', ','),
     ])
 

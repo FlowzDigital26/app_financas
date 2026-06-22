@@ -62,7 +62,7 @@ export default function TransactionsPage() {
 
     if (filters.search) {
       const q = filters.search.toLowerCase()
-      result = result.filter((t) => t.description.toLowerCase().includes(q))
+      result = result.filter((t) => `${t.name ?? ''} ${t.description}`.toLowerCase().includes(q))
     }
 
     setTransactions(result)
