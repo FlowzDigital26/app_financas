@@ -92,6 +92,22 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
     setBank('')
   }
 
+  async function createSubcategory() {
+    if (!category) { toast({ title: 'Escolha uma categoria primeiro', variant: 'destructive' }); return }
+    const name = window.prompt(`Nova subcategoria em "${category}":`)?.trim()
+    if (!name) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { error } = await supabase.from('subcategories')
+      .upsert({ user_id: user.id, category_name: category, name }, { onConflict: 'user_id,category_name,name', ignoreDuplicates: true })
+    if (error) { toast({ title: 'Erro ao criar subcategoria', description: error.message, variant: 'destructive' }); return }
+    setSubsByCategory((prev) => {
+      const list = prev[category] ?? []
+      return list.includes(name) ? prev : { ...prev, [category]: [...list, name].sort() }
+    })
+    setSubcategory(name)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!amount || !description || !category || !date) {
@@ -221,18 +237,25 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
             </Select>
           </div>
 
-          {category && (subsByCategory[category]?.length ?? 0) > 0 && (
+          {category && (
             <div className="space-y-1.5">
               <Label>Subcategoria</Label>
-              <Select value={subcategory || '__none__'} onValueChange={(v) => setSubcategory(v === '__none__' ? '' : v)}>
+              <Select
+                value={subcategory || '__none__'}
+                onValueChange={(v) => {
+                  if (v === '__new__') createSubcategory()
+                  else setSubcategory(v === '__none__' ? '' : v)
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                  {subsByCategory[category].map((s) => (
+                  {(subsByCategory[category] ?? []).map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
+                  <SelectItem value="__new__">➕ Nova subcategoria…</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">Vincula este gasto à subcategoria no Planejamento.</p>

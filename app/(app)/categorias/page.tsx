@@ -22,6 +22,7 @@ interface DefaultCat { name: string; color: string; type: TransactionType }
 export default function CategoriasPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [hiddenDefaults, setHiddenDefaults] = useState<string[]>([])
+  const [subsByCategory, setSubsByCategory] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -42,12 +43,18 @@ export default function CategoriasPage() {
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
-    const [{ data: cats }, { data: profile }] = await Promise.all([
+    const [{ data: cats }, { data: profile }, { data: subs }] = await Promise.all([
       supabase.from('categories').select('*').eq('user_id', user.id).order('type').order('name'),
       supabase.from('profiles').select('hidden_defaults').eq('id', user.id).maybeSingle(),
+      supabase.from('subcategories').select('category_name, name').eq('user_id', user.id).order('name'),
     ])
     setCategories((cats ?? []) as Category[])
     setHiddenDefaults((profile?.hidden_defaults ?? []) as string[])
+    const grouped: Record<string, string[]> = {}
+    for (const s of (subs ?? []) as { category_name: string; name: string }[]) {
+      ;(grouped[s.category_name] ??= []).push(s.name)
+    }
+    setSubsByCategory(grouped)
     setLoading(false)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -160,6 +167,78 @@ export default function CategoriasPage() {
   const customExpense = categories.filter((c) => c.type === 'expense')
   const customIncome = categories.filter((c) => c.type === 'income')
 
+  // ── Subcategorias (criar / editar / excluir) ──
+  async function addSub(categoryName: string) {
+    const name = window.prompt(`Nova subcategoria em "${categoryName}":`)?.trim()
+    if (!name) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { error } = await supabase.from('subcategories')
+      .upsert({ user_id: user.id, category_name: categoryName, name }, { onConflict: 'user_id,category_name,name', ignoreDuplicates: true })
+    if (error) { toast({ title: 'Erro ao criar subcategoria', description: error.message, variant: 'destructive' }); return }
+    setSubsByCategory((prev) => {
+      const list = prev[categoryName] ?? []
+      return list.includes(name) ? prev : { ...prev, [categoryName]: [...list, name].sort() }
+    })
+    toast({ title: 'Subcategoria criada!' })
+  }
+
+  async function renameSub(categoryName: string, oldName: string) {
+    const name = window.prompt(`Renomear "${oldName}":`, oldName)?.trim()
+    if (!name || name === oldName) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { error } = await supabase.from('subcategories')
+      .update({ name }).eq('user_id', user.id).eq('category_name', categoryName).eq('name', oldName)
+    if (error) { toast({ title: error.code === '23505' ? 'Já existe' : 'Erro ao renomear', variant: 'destructive' }); return }
+    // Mantém transações e planejamento vinculados ao novo nome
+    await supabase.from('transactions').update({ subcategory: name })
+      .eq('user_id', user.id).eq('category', categoryName).eq('subcategory', oldName)
+    await supabase.from('budget_plans').update({ subcategory: name })
+      .eq('user_id', user.id).eq('category', categoryName).eq('subcategory', oldName)
+    setSubsByCategory((prev) => ({
+      ...prev,
+      [categoryName]: (prev[categoryName] ?? []).map((s) => (s === oldName ? name : s)).sort(),
+    }))
+    toast({ title: 'Subcategoria renomeada!' })
+  }
+
+  async function deleteSub(categoryName: string, name: string) {
+    if (!confirm(`Excluir a subcategoria "${name}"?`)) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { error } = await supabase.from('subcategories')
+      .delete().eq('user_id', user.id).eq('category_name', categoryName).eq('name', name)
+    if (error) { toast({ title: 'Erro ao excluir', variant: 'destructive' }); return }
+    setSubsByCategory((prev) => ({
+      ...prev,
+      [categoryName]: (prev[categoryName] ?? []).filter((s) => s !== name),
+    }))
+    toast({ title: 'Subcategoria removida' })
+  }
+
+  const CategorySubs = ({ categoryName }: { categoryName: string }) => {
+    const list = subsByCategory[categoryName] ?? []
+    return (
+      <div className="pl-6 pr-1 pb-1 flex flex-wrap items-center gap-1.5">
+        {list.map((s) => (
+          <span key={s} className="inline-flex items-center gap-1 text-[11px] bg-muted rounded-full pl-2 pr-1 py-0.5">
+            <button className="hover:underline" onClick={() => renameSub(categoryName, s)} title="Renomear">{s}</button>
+            <button className="text-muted-foreground hover:text-expense" onClick={() => deleteSub(categoryName, s)} title="Excluir">
+              <Trash2 className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <button
+          onClick={() => addSub(categoryName)}
+          className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline"
+        >
+          <Plus className="w-3 h-3" /> subcategoria
+        </button>
+      </div>
+    )
+  }
+
   const ColorPicker = ({ value, onChange }: { value: string; onChange: (c: string) => void }) => (
     <div className="flex flex-wrap gap-2">
       {COLOR_OPTIONS.map((c) => (
@@ -246,37 +325,43 @@ export default function CategoriasPage() {
           </CardHeader>
           <CardContent className="space-y-1 p-3 pt-0">
             {visibleExpenseDefs.map((cat) => (
-              <div key={cat.name} className="flex items-center gap-3 px-3 py-2 rounded-lg group hover:bg-muted/50">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                <span className="text-sm flex-1">{cat.name}</span>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={() => openEditDefault({ name: cat.name, color: cat.color, type: 'expense' })}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
-                    onClick={() => handleDeleteDefault(cat.name)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+              <div key={cat.name} className="rounded-lg group hover:bg-muted/50">
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="text-sm flex-1">{cat.name}</span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEditDefault({ name: cat.name, color: cat.color, type: 'expense' })}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
+                      onClick={() => handleDeleteDefault(cat.name)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
+                <CategorySubs categoryName={cat.name} />
               </div>
             ))}
             {loading ? (
               <div className="py-2 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
             ) : customExpense.map((cat) => (
-              <div key={cat.id} className="flex items-center gap-3 px-3 py-2 rounded-lg group hover:bg-muted/50">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                <span className="text-sm flex-1">{cat.name}</span>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={() => openEditCustom(cat)}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
-                    onClick={() => handleDeleteCustom(cat.id)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+              <div key={cat.id} className="rounded-lg group hover:bg-muted/50">
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="text-sm flex-1">{cat.name}</span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEditCustom(cat)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
+                      onClick={() => handleDeleteCustom(cat.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
+                <CategorySubs categoryName={cat.name} />
               </div>
             ))}
             {visibleExpenseDefs.length === 0 && customExpense.length === 0 && !loading && (
@@ -292,37 +377,43 @@ export default function CategoriasPage() {
           </CardHeader>
           <CardContent className="space-y-1 p-3 pt-0">
             {visibleIncomeDefs.map((cat) => (
-              <div key={cat.name} className="flex items-center gap-3 px-3 py-2 rounded-lg group hover:bg-muted/50">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                <span className="text-sm flex-1">{cat.name}</span>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={() => openEditDefault({ name: cat.name, color: cat.color, type: 'income' })}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
-                    onClick={() => handleDeleteDefault(cat.name)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+              <div key={cat.name} className="rounded-lg group hover:bg-muted/50">
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="text-sm flex-1">{cat.name}</span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEditDefault({ name: cat.name, color: cat.color, type: 'income' })}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
+                      onClick={() => handleDeleteDefault(cat.name)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
+                <CategorySubs categoryName={cat.name} />
               </div>
             ))}
             {loading ? (
               <div className="py-2 flex justify-center"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
             ) : customIncome.map((cat) => (
-              <div key={cat.id} className="flex items-center gap-3 px-3 py-2 rounded-lg group hover:bg-muted/50">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                <span className="text-sm flex-1">{cat.name}</span>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={() => openEditCustom(cat)}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
-                    onClick={() => handleDeleteCustom(cat.id)}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+              <div key={cat.id} className="rounded-lg group hover:bg-muted/50">
+                <div className="flex items-center gap-3 px-3 py-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="text-sm flex-1">{cat.name}</span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEditCustom(cat)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-expense hover:bg-expense/10"
+                      onClick={() => handleDeleteCustom(cat.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
+                <CategorySubs categoryName={cat.name} />
               </div>
             ))}
             {visibleIncomeDefs.length === 0 && customIncome.length === 0 && !loading && (
