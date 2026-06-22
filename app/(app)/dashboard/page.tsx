@@ -8,7 +8,8 @@ import { BudgetCard } from '@/components/dashboard/budget-card'
 import { LiveDate } from '@/components/dashboard/live-date'
 import { TransactionList } from '@/components/transactions/transaction-list'
 import { TransactionForm } from '@/components/transactions/transaction-form'
-import { type Transaction, type MonthlyData, type BudgetConfig } from '@/types'
+import { type Transaction, type MonthlyData, type BudgetConfig, type BudgetPlanItem } from '@/types'
+import { buildActualMaps, realizedFor } from '@/lib/planning'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +35,7 @@ export default async function HomePage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('budget_plans')
-      .select('name, kind, planned')
+      .select('*')
       .eq('user_id', user.id)
       .eq('month', monthStart),
   ])
@@ -43,21 +44,19 @@ export default async function HomePage() {
   const totalIncome = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const totalExpense = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
 
-  // Per-category actual spending this month (for budget comparison)
-  const categoryActual: Record<string, number> = {}
-  transactions.filter((t) => t.type === 'expense').forEach((t) => {
-    categoryActual[t.category] = (categoryActual[t.category] ?? 0) + t.amount
-  })
-
-  // Build a BudgetConfig view from this month's plan items
-  const plans = (planItems ?? []) as { name: string; kind: string; planned: number }[]
+  // Build a BudgetConfig view from this month's plan, keyed by plan label (Nome).
+  // Realized amount per line matches by category + subcategory (same logic as Planejamento).
+  const plans = (planItems ?? []) as BudgetPlanItem[]
+  const actualMaps = buildActualMaps(transactions)
   const category_budgets: Record<string, number> = {}
+  const categoryActual: Record<string, number> = {}
   let monthly_salary = 0
   let investment_goal = 0
   for (const p of plans) {
-    if (p.kind === 'renda') monthly_salary += p.planned
-    else if (p.kind === 'investimento') { investment_goal += p.planned; category_budgets[p.name] = p.planned }
-    else category_budgets[p.name] = p.planned // fixo / variavel
+    if (p.kind === 'renda') { monthly_salary += p.planned; continue }
+    if (p.kind === 'investimento') investment_goal += p.planned
+    category_budgets[p.label] = p.planned // fixo / variavel / investimento
+    categoryActual[p.label] = realizedFor(p, actualMaps)
   }
   const budgetConfig: BudgetConfig = {
     id: '', user_id: user.id,

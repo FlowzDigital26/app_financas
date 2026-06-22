@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
+import { realizedFor, type ActualMaps } from '@/lib/planning'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,10 +26,10 @@ import { PLAN_KINDS, type PlanKind, type BudgetPlanItem } from '@/types'
 interface PlanningBoardProps {
   month: string // 'yyyy-MM'
   items: BudgetPlanItem[]
-  incomeActual: Record<string, number>
-  expenseActual: Record<string, number>
+  actualMaps: ActualMaps
   incomeCategories: string[]
   expenseCategories: string[]
+  subsByCategory: Record<string, string[]>
 }
 
 interface Row {
@@ -38,6 +39,9 @@ interface Row {
   pct: number
 }
 
+const NONE = '__none__'
+const NEW = '__new__'
+
 const KIND_LABEL: Record<PlanKind, string> = {
   renda: 'Renda', investimento: 'Investimentos', fixo: 'Fixo', variavel: 'Variável',
 }
@@ -45,7 +49,7 @@ const KIND_COLOR: Record<PlanKind, string> = {
   renda: '#3aaa6e', investimento: '#06b6d4', fixo: '#f97316', variavel: '#f59e0b',
 }
 const VALUE_LABEL: Record<PlanKind, string> = {
-  renda: 'Valor recebido', investimento: 'Valor investido', fixo: 'Valor gasto', variavel: 'Valor gasto',
+  renda: 'Recebido', investimento: 'Investido', fixo: 'Gasto', variavel: 'Gasto',
 }
 
 function pctColor(pct: number, kind: PlanKind) {
@@ -61,8 +65,10 @@ function ProgressBar({ pct, kind }: { pct: number; kind: PlanKind }) {
   )
 }
 
+const GRID = 'grid-cols-[1.4fr_1fr_1fr_0.9fr_1fr_1fr_1.1fr_auto]'
+
 export function PlanningBoard({
-  month, items, incomeActual, expenseActual, incomeCategories, expenseCategories,
+  month, items, actualMaps, incomeCategories, expenseCategories, subsByCategory,
 }: PlanningBoardProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -71,29 +77,30 @@ export function PlanningBoard({
   const monthDate = parseISO(`${month}-01`)
   const monthLabel = format(monthDate, 'MMMM/yyyy', { locale: ptBR }).toUpperCase()
 
+  // Local copy of subcategories so newly created ones show up immediately
+  const [subs, setSubs] = useState<Record<string, string[]>>(subsByCategory)
+
   // ── Dialog state (add / edit) ──
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [fKind, setFKind] = useState<PlanKind>('fixo')
-  const [fName, setFName] = useState('')
+  const [fLabel, setFLabel] = useState('')
+  const [fCategory, setFCategory] = useState('')
+  const [fSub, setFSub] = useState('')          // '' = nenhuma
   const [fPlanned, setFPlanned] = useState('')
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  function actualFor(it: BudgetPlanItem) {
-    return (it.kind === 'renda' ? incomeActual[it.name] : expenseActual[it.name]) ?? 0
-  }
-
   const rowsByKind = useMemo(() => {
     const map: Record<PlanKind, Row[]> = { renda: [], investimento: [], fixo: [], variavel: [] }
     for (const item of items) {
-      const actual = actualFor(item)
+      const actual = realizedFor(item, actualMaps)
       const result = item.kind === 'renda' ? actual - item.planned : item.planned - actual
       const pct = item.planned > 0 ? (actual / item.planned) * 100 : actual > 0 ? 100 : 0
       map[item.kind].push({ item, actual, result, pct })
     }
     return map
-  }, [items, incomeActual, expenseActual]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items, actualMaps])
 
   const plannedRenda = rowsByKind.renda.reduce((s, r) => s + r.item.planned, 0)
   const plannedFixo = rowsByKind.fixo.reduce((s, r) => s + r.item.planned, 0)
@@ -102,55 +109,76 @@ export function PlanningBoard({
   const plannedSaidas = plannedFixo + plannedInvest + plannedVariavel
   const saldo = plannedRenda - plannedSaidas
 
-  // ── Navigation ──
   function goMonth(delta: number) {
     const target = delta < 0 ? subMonths(monthDate, 1) : addMonths(monthDate, 1)
     router.push(`/planejamento?mes=${format(target, 'yyyy-MM')}`)
   }
 
-  // ── CRUD ──
   function openAdd(kind: PlanKind) {
-    setEditId(null); setFKind(kind); setFName(''); setFPlanned('')
+    setEditId(null); setFKind(kind); setFLabel(''); setFCategory(''); setFSub(''); setFPlanned('')
     setDialogOpen(true)
   }
   function openEdit(item: BudgetPlanItem) {
-    setEditId(item.id); setFKind(item.kind); setFName(item.name); setFPlanned(String(item.planned))
+    setEditId(item.id); setFKind(item.kind); setFLabel(item.label)
+    setFCategory(item.category); setFSub(item.subcategory ?? ''); setFPlanned(String(item.planned))
     setDialogOpen(true)
   }
 
+  const dialogCategories = fKind === 'renda' ? incomeCategories : expenseCategories
+  const dialogSubs = fCategory ? (subs[fCategory] ?? []) : []
+
+  async function createSubcategory() {
+    if (!fCategory) { toast({ title: 'Escolha uma categoria primeiro', variant: 'destructive' }); return }
+    const name = window.prompt(`Nova subcategoria em "${fCategory}":`)?.trim()
+    if (!name) return
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { error } = await supabase.from('subcategories')
+      .upsert({ user_id: user.id, category_name: fCategory, name }, { onConflict: 'user_id,category_name,name', ignoreDuplicates: true })
+    if (error) { toast({ title: 'Erro ao criar subcategoria', description: error.message, variant: 'destructive' }); return }
+    setSubs((prev) => {
+      const list = prev[fCategory] ?? []
+      return list.includes(name) ? prev : { ...prev, [fCategory]: [...list, name].sort() }
+    })
+    setFSub(name)
+    router.refresh()
+  }
+
   async function handleSave() {
-    if (!fName.trim()) { toast({ title: 'Escolha uma categoria', variant: 'destructive' }); return }
+    if (!fLabel.trim()) { toast({ title: 'Informe o nome', variant: 'destructive' }); return }
+    if (!fCategory) { toast({ title: 'Escolha uma categoria', variant: 'destructive' }); return }
     const planned = parseFloat(fPlanned.replace(',', '.'))
     if (isNaN(planned) || planned < 0) { toast({ title: 'Valor inválido', variant: 'destructive' }); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
 
+    const payload = {
+      kind: fKind,
+      label: fLabel.trim(),
+      category: fCategory,
+      subcategory: fSub || null,
+      planned,
+    }
+
     let error
     if (editId) {
-      ({ error } = await supabase.from('budget_plans')
-        .update({ name: fName.trim(), kind: fKind, planned })
-        .eq('id', editId))
+      ({ error } = await supabase.from('budget_plans').update(payload).eq('id', editId))
     } else {
-      ({ error } = await supabase.from('budget_plans').upsert({
-        user_id: user.id,
-        month: `${month}-01`,
-        name: fName.trim(),
-        kind: fKind,
-        planned,
-      }, { onConflict: 'user_id,month,name,kind' }))
+      ({ error } = await supabase.from('budget_plans').upsert(
+        { user_id: user.id, month: `${month}-01`, ...payload },
+        { onConflict: 'user_id,month,kind,label' },
+      ))
     }
     setSaving(false)
-    if (error) {
-      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' }); return
-    }
+    if (error) { toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' }); return }
     toast({ title: editId ? 'Planejamento atualizado!' : 'Planejamento adicionado!' })
     setDialogOpen(false)
     router.refresh()
   }
 
   async function handleDelete(item: BudgetPlanItem) {
-    if (!confirm(`Remover "${item.name}" do planejamento?`)) return
+    if (!confirm(`Remover "${item.label}" do planejamento?`)) return
     const { error } = await supabase.from('budget_plans').delete().eq('id', item.id)
     if (error) { toast({ title: 'Erro ao excluir', variant: 'destructive' }); return }
     toast({ title: 'Removido do planejamento' })
@@ -163,25 +191,21 @@ export function PlanningBoard({
     if (!user) { setBusy(false); return }
     const prev = format(subMonths(monthDate, 1), 'yyyy-MM-dd')
     const { data: prevItems, error: fetchErr } = await supabase
-      .from('budget_plans').select('name, kind, planned').eq('user_id', user.id).eq('month', prev)
+      .from('budget_plans').select('kind, label, category, subcategory, planned')
+      .eq('user_id', user.id).eq('month', prev)
     if (fetchErr) { setBusy(false); toast({ title: 'Erro ao buscar mês anterior', variant: 'destructive' }); return }
     if (!prevItems || prevItems.length === 0) {
       setBusy(false); toast({ title: 'Mês anterior está vazio', description: 'Nada para copiar.' }); return
     }
-    const rows = prevItems.map((p) => ({
-      user_id: user.id, month: `${month}-01`, name: p.name, kind: p.kind, planned: p.planned,
-    }))
+    const rows = prevItems.map((p) => ({ user_id: user.id, month: `${month}-01`, ...p }))
     const { error } = await supabase.from('budget_plans')
-      .upsert(rows, { onConflict: 'user_id,month,name,kind', ignoreDuplicates: true })
+      .upsert(rows, { onConflict: 'user_id,month,kind,label', ignoreDuplicates: true })
     setBusy(false)
     if (error) { toast({ title: 'Erro ao copiar', description: error.message, variant: 'destructive' }); return }
     toast({ title: `${rows.length} itens copiados do mês anterior` })
     router.refresh()
   }
 
-  const dialogCategories = fKind === 'renda' ? incomeCategories : expenseCategories
-
-  // Distribution bar segments (% of planned saídas)
   const segments = plannedSaidas > 0 ? [
     { label: 'Fixo', value: plannedFixo, color: KIND_COLOR.fixo },
     { label: 'Investimento', value: plannedInvest, color: KIND_COLOR.investimento },
@@ -245,19 +269,17 @@ export function PlanningBoard({
 
       {/* Distribution bar */}
       {segments.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="flex h-6 w-full rounded-lg overflow-hidden">
-            {segments.map((s) => (
-              <div
-                key={s.label}
-                className="flex items-center justify-center text-[10px] font-semibold text-white"
-                style={{ width: `${(s.value / plannedSaidas) * 100}%`, backgroundColor: s.color }}
-                title={`${s.label}: ${formatCurrency(s.value)}`}
-              >
-                {((s.value / plannedSaidas) * 100) >= 8 && `${((s.value / plannedSaidas) * 100).toFixed(1)}% ${s.label}`}
-              </div>
-            ))}
-          </div>
+        <div className="flex h-6 w-full rounded-lg overflow-hidden">
+          {segments.map((s) => (
+            <div
+              key={s.label}
+              className="flex items-center justify-center text-[10px] font-semibold text-white"
+              style={{ width: `${(s.value / plannedSaidas) * 100}%`, backgroundColor: s.color }}
+              title={`${s.label}: ${formatCurrency(s.value)}`}
+            >
+              {((s.value / plannedSaidas) * 100) >= 8 && `${((s.value / plannedSaidas) * 100).toFixed(1)}% ${s.label}`}
+            </div>
+          ))}
         </div>
       )}
 
@@ -269,16 +291,12 @@ export function PlanningBoard({
         const totalResult = kind === 'renda' ? totalActual - totalPlanned : totalPlanned - totalActual
         return (
           <div key={kind} className="bg-card border border-border rounded-xl overflow-hidden">
-            {/* Section header */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: KIND_COLOR[kind] }} />
                 <h2 className="text-sm font-semibold">{KIND_LABEL[kind]}</h2>
               </div>
-              <button
-                onClick={() => openAdd(kind)}
-                className="text-xs font-medium text-accent hover:underline flex items-center gap-1"
-              >
+              <button onClick={() => openAdd(kind)} className="text-xs font-medium text-accent hover:underline flex items-center gap-1">
                 <Plus className="w-3 h-3" /> Adicionar
               </button>
             </div>
@@ -286,46 +304,52 @@ export function PlanningBoard({
             {rows.length === 0 ? (
               <p className="text-xs text-muted-foreground px-4 py-4">Nenhuma categoria planejada aqui ainda.</p>
             ) : (
-              <div className="divide-y divide-border">
-                {/* Column header */}
-                <div className="hidden sm:grid grid-cols-[1.5fr_1fr_1fr_1fr_1.2fr_auto] gap-3 px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  <span>Categoria</span>
-                  <span className="text-right">Meta</span>
-                  <span className="text-right">{VALUE_LABEL[kind]}</span>
-                  <span className="text-right">Resultado</span>
-                  <span>Progresso</span>
-                  <span className="w-14" />
-                </div>
-                {rows.map((r) => (
-                  <div key={r.item.id} className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_1fr_1fr_1.2fr_auto] gap-x-3 gap-y-1 px-4 py-2.5 items-center text-sm group">
-                    <span className="font-medium truncate">{r.item.name}</span>
-                    <span className="text-right text-muted-foreground sm:text-foreground">{formatCurrency(r.item.planned)}</span>
-                    <span className="text-right">{formatCurrency(r.actual)}</span>
-                    <span className={`text-right font-medium ${r.result >= 0 ? 'text-income' : 'text-expense'}`}>
-                      {formatCurrency(r.result)}
-                    </span>
-                    <div className="col-span-2 sm:col-span-1 flex items-center gap-2">
-                      <ProgressBar pct={r.pct} kind={kind} />
-                      <span className="text-[10px] text-muted-foreground w-9 text-right shrink-0">{r.pct.toFixed(0)}%</span>
-                    </div>
-                    <div className="flex justify-end gap-0.5 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(r.item)}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-expense hover:bg-expense/10" onClick={() => handleDelete(r.item)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+              <div className="overflow-x-auto">
+                <div className="min-w-[820px] divide-y divide-border">
+                  {/* Column header */}
+                  <div className={`grid ${GRID} gap-3 px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider`}>
+                    <span>Nome</span>
+                    <span>Categoria</span>
+                    <span>Subcategoria</span>
+                    <span className="text-right">Valor</span>
+                    <span className="text-right">{VALUE_LABEL[kind]}</span>
+                    <span className="text-right">Resultado</span>
+                    <span>Progresso</span>
+                    <span className="w-14" />
                   </div>
-                ))}
-                {/* Total row */}
-                <div className="grid grid-cols-2 sm:grid-cols-[1.5fr_1fr_1fr_1fr_1.2fr_auto] gap-3 px-4 py-2.5 items-center text-sm font-semibold bg-muted/30">
-                  <span>Total</span>
-                  <span className="text-right">{formatCurrency(totalPlanned)}</span>
-                  <span className="text-right">{formatCurrency(totalActual)}</span>
-                  <span className={`text-right ${totalResult >= 0 ? 'text-income' : 'text-expense'}`}>{formatCurrency(totalResult)}</span>
-                  <span className="hidden sm:block" />
-                  <span className="hidden sm:block" />
+                  {rows.map((r) => (
+                    <div key={r.item.id} className={`grid ${GRID} gap-3 px-4 py-2.5 items-center text-sm group`}>
+                      <span className="font-medium truncate" title={r.item.label}>{r.item.label}</span>
+                      <span className="text-muted-foreground truncate">{r.item.category}</span>
+                      <span className="text-muted-foreground truncate">{r.item.subcategory || '—'}</span>
+                      <span className="text-right">{formatCurrency(r.item.planned)}</span>
+                      <span className="text-right">{formatCurrency(r.actual)}</span>
+                      <span className={`text-right font-medium ${r.result >= 0 ? 'text-income' : 'text-expense'}`}>
+                        {formatCurrency(r.result)}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <ProgressBar pct={r.pct} kind={kind} />
+                        <span className="text-[10px] text-muted-foreground w-9 text-right shrink-0">{r.pct.toFixed(0)}%</span>
+                      </div>
+                      <div className="flex justify-end gap-0.5 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(r.item)}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-expense hover:bg-expense/10" onClick={() => handleDelete(r.item)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Total row */}
+                  <div className={`grid ${GRID} gap-3 px-4 py-2.5 items-center text-sm font-semibold bg-muted/30`}>
+                    <span>Total</span>
+                    <span /><span />
+                    <span className="text-right">{formatCurrency(totalPlanned)}</span>
+                    <span className="text-right">{formatCurrency(totalActual)}</span>
+                    <span className={`text-right ${totalResult >= 0 ? 'text-income' : 'text-expense'}`}>{formatCurrency(totalResult)}</span>
+                    <span /><span />
+                  </div>
                 </div>
               </div>
             )}
@@ -342,31 +366,57 @@ export function PlanningBoard({
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Tipo</Label>
-              <Select value={fKind} onValueChange={(v) => { setFKind(v as PlanKind); setFName('') }}>
+              <Select value={fKind} onValueChange={(v) => { setFKind(v as PlanKind); setFCategory(''); setFSub('') }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PLAN_KINDS.map((k) => (
-                    <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
-                  ))}
+                  {PLAN_KINDS.map((k) => (<SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="plan-label">Nome</Label>
+              <Input id="plan-label" placeholder="Ex: Assinatura do Spotify" value={fLabel}
+                onChange={(e) => setFLabel(e.target.value)} />
+            </div>
+
             <div className="space-y-1.5">
               <Label>Categoria</Label>
-              <Select value={fName} onValueChange={setFName}>
+              <Select value={fCategory} onValueChange={(v) => { setFCategory(v); setFSub('') }}>
                 <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
                 <SelectContent>
-                  {dialogCategories.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
+                  {dialogCategories.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">
                 Não achou? Crie em <Link href="/categorias" className="text-accent hover:underline">Categorias</Link>.
               </p>
             </div>
+
             <div className="space-y-1.5">
-              <Label htmlFor="planned">Meta (R$)</Label>
+              <Label>Subcategoria <span className="text-muted-foreground font-normal">(opcional)</span></Label>
+              <Select
+                value={fSub || NONE}
+                onValueChange={(v) => {
+                  if (v === NEW) createSubcategory()
+                  else if (v === NONE) setFSub('')
+                  else setFSub(v)
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>— Nenhuma —</SelectItem>
+                  {dialogSubs.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                  <SelectItem value={NEW}>➕ Nova subcategoria…</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Use para detalhar (ex: Spotify). O realizado casa com despesas lançadas nessa subcategoria.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="planned">Valor (R$)</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">R$</span>
                 <Input id="planned" inputMode="decimal" placeholder="0,00" value={fPlanned}

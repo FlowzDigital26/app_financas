@@ -26,6 +26,7 @@ export interface Transaction {
   amount: number
   description: string
   category: string
+  subcategory?: string | null
   date: string
   payment_method?: PaymentMethod
   bank?: string
@@ -37,9 +38,18 @@ export interface TransactionInsert {
   amount: number
   description: string
   category: string
+  subcategory?: string | null
   date: string
   payment_method?: PaymentMethod
   bank?: string
+}
+
+export interface Subcategory {
+  id: string
+  user_id: string
+  category_name: string
+  name: string
+  created_at: string
 }
 
 export interface Category {
@@ -176,8 +186,10 @@ export interface BudgetPlanItem {
   id: string
   user_id: string
   month: string   // 'yyyy-MM-dd' (first day of month)
-  name: string
   kind: PlanKind
-  planned: number
+  label: string                 // Nome (ex: Assinatura do Spotify)
+  category: string              // Categoria (ex: Lazer)
+  subcategory?: string | null   // Subcategoria (ex: Spotify)
+  planned: number               // Valor
   created_at: string
 }

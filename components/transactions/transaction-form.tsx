@@ -32,11 +32,13 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
   const [loading, setLoading] = useState(false)
   const [customCategories, setCustomCategories] = useState<Category[]>([])
   const [hiddenDefaults, setHiddenDefaults] = useState<string[]>([])
+  const [subsByCategory, setSubsByCategory] = useState<Record<string, string[]>>({})
   const router = useRouter()
   const [type, setType] = useState<TransactionType>(transaction?.type ?? 'expense')
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
   const [description, setDescription] = useState(transaction?.description ?? '')
   const [category, setCategory] = useState(transaction?.category ?? '')
+  const [subcategory, setSubcategory] = useState(transaction?.subcategory ?? '')
   const [date, setDate] = useState(transaction?.date ?? format(new Date(), 'yyyy-MM-dd'))
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(transaction?.payment_method ?? 'pix')
   const [bank, setBank] = useState(transaction?.bank ?? '')
@@ -50,12 +52,18 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
     async function loadCategories() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const [{ data: cats }, { data: profile }] = await Promise.all([
+      const [{ data: cats }, { data: profile }, { data: subs }] = await Promise.all([
         supabase.from('categories').select('*').eq('user_id', user.id).order('name'),
         supabase.from('profiles').select('hidden_defaults').eq('id', user.id).maybeSingle(),
+        supabase.from('subcategories').select('category_name, name').eq('user_id', user.id).order('name'),
       ])
       setCustomCategories((cats ?? []) as Category[])
       setHiddenDefaults((profile?.hidden_defaults ?? []) as string[])
+      const grouped: Record<string, string[]> = {}
+      for (const s of (subs ?? []) as { category_name: string; name: string }[]) {
+        ;(grouped[s.category_name] ??= []).push(s.name)
+      }
+      setSubsByCategory(grouped)
     }
     loadCategories()
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -75,6 +83,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
     setAmount('')
     setDescription('')
     setCategory('')
+    setSubcategory('')
     setDate(format(new Date(), 'yyyy-MM-dd'))
     setPaymentMethod('pix')
     setBank('')
@@ -96,7 +105,9 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
     if (!user) { setLoading(false); return }
 
     const payload = {
-      type, amount: parsedAmount, description, category, date,
+      type, amount: parsedAmount, description, category,
+      subcategory: subcategory || null,
+      date,
       payment_method: paymentMethod,
       bank: bank.trim() || null,
       user_id: user.id,
@@ -168,7 +179,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
 
           <div className="space-y-1.5">
             <Label>Categoria *</Label>
-            <Select value={category} onValueChange={setCategory}>
+            <Select value={category} onValueChange={(v) => { setCategory(v); setSubcategory('') }}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione uma categoria" />
               </SelectTrigger>
@@ -179,6 +190,24 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
               </SelectContent>
             </Select>
           </div>
+
+          {category && (subsByCategory[category]?.length ?? 0) > 0 && (
+            <div className="space-y-1.5">
+              <Label>Subcategoria</Label>
+              <Select value={subcategory || '__none__'} onValueChange={(v) => setSubcategory(v === '__none__' ? '' : v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                  {subsByCategory[category].map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">Vincula este gasto à subcategoria no Planejamento.</p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Forma de Pagamento</Label>

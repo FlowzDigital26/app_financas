@@ -2,9 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
 import { PlanningBoard } from '@/components/budget/planning-board'
+import { buildActualMaps } from '@/lib/planning'
 import {
   DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES,
-  type BudgetPlanItem, type Category,
+  type BudgetPlanItem, type Category, type Subcategory,
 } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -27,59 +28,61 @@ export default async function PlanejamentoPage({
   if (!user) redirect('/login')
 
   const { mes } = await searchParams
-  // Selected month — default to current month
   const base = mes && /^\d{4}-\d{2}$/.test(mes) ? parseISO(`${mes}-01`) : new Date()
   const monthFirst = format(startOfMonth(base), 'yyyy-MM-dd')
-  const monthStart = monthFirst
   const monthEnd = format(endOfMonth(base), 'yyyy-MM-dd')
   const monthKey = format(base, 'yyyy-MM')
 
-  const [{ data: plans = [] }, { data: monthTxs = [] }, { data: customCats = [] }] =
-    await Promise.all([
-      supabase
-        .from('budget_plans')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('month', monthFirst)
-        .order('created_at', { ascending: true }),
-      supabase
-        .from('transactions')
-        .select('type, amount, category')
-        .eq('user_id', user.id)
-        .gte('date', monthStart)
-        .lte('date', monthEnd),
-      supabase
-        .from('categories')
-        .select('name, type, color')
-        .eq('user_id', user.id),
-    ])
+  const [
+    { data: plans = [] },
+    { data: monthTxs = [] },
+    { data: customCats = [] },
+    { data: subs = [] },
+  ] = await Promise.all([
+    supabase
+      .from('budget_plans')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('month', monthFirst)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('transactions')
+      .select('type, amount, category, subcategory')
+      .eq('user_id', user.id)
+      .gte('date', monthFirst)
+      .lte('date', monthEnd),
+    supabase
+      .from('categories')
+      .select('name, type')
+      .eq('user_id', user.id),
+    supabase
+      .from('subcategories')
+      .select('category_name, name')
+      .eq('user_id', user.id)
+      .order('name', { ascending: true }),
+  ])
 
-  const transactions = (monthTxs ?? []) as { type: string; amount: number; category: string }[]
-  const incomeActual: Record<string, number> = {}
-  const expenseActual: Record<string, number> = {}
-  for (const t of transactions) {
-    const map = t.type === 'income' ? incomeActual : expenseActual
-    map[t.category] = (map[t.category] ?? 0) + t.amount
+  const transactions = (monthTxs ?? []) as { type: string; amount: number; category: string; subcategory?: string | null }[]
+  const actualMaps = buildActualMaps(transactions)
+
+  const cats = (customCats ?? []) as Pick<Category, 'name' | 'type'>[]
+  const incomeCategories = mergeNames(DEFAULT_INCOME_CATEGORIES, cats.filter((c) => c.type === 'income'))
+  const expenseCategories = mergeNames(DEFAULT_EXPENSE_CATEGORIES, cats.filter((c) => c.type === 'expense'))
+
+  // Group subcategories by parent category name
+  const subsByCategory: Record<string, string[]> = {}
+  for (const s of (subs ?? []) as Pick<Subcategory, 'category_name' | 'name'>[]) {
+    ;(subsByCategory[s.category_name] ??= []).push(s.name)
   }
-
-  const cats = (customCats ?? []) as Pick<Category, 'name' | 'type' | 'color'>[]
-  const incomeCategories = mergeNames(
-    DEFAULT_INCOME_CATEGORIES,
-    cats.filter((c) => c.type === 'income'),
-  )
-  const expenseCategories = mergeNames(
-    DEFAULT_EXPENSE_CATEGORIES,
-    cats.filter((c) => c.type === 'expense'),
-  )
 
   return (
     <PlanningBoard
       month={monthKey}
       items={(plans ?? []) as BudgetPlanItem[]}
-      incomeActual={incomeActual}
-      expenseActual={expenseActual}
+      actualMaps={actualMaps}
       incomeCategories={incomeCategories}
       expenseCategories={expenseCategories}
+      subsByCategory={subsByCategory}
     />
   )
 }
