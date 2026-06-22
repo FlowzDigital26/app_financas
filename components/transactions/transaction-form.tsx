@@ -17,8 +17,8 @@ import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import {
   DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES,
-  PAYMENT_METHODS,
-  type TransactionType, type Transaction, type Category, type PaymentMethod,
+  PAYMENT_METHODS, PLAN_KINDS,
+  type TransactionType, type Transaction, type Category, type PaymentMethod, type PlanKind,
 } from '@/types'
 
 interface TransactionFormProps {
@@ -34,7 +34,10 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
   const [hiddenDefaults, setHiddenDefaults] = useState<string[]>([])
   const [subsByCategory, setSubsByCategory] = useState<Record<string, string[]>>({})
   const router = useRouter()
-  const [type, setType] = useState<TransactionType>(transaction?.type ?? 'expense')
+  const [kind, setKind] = useState<PlanKind>(
+    transaction?.kind ?? (transaction?.type === 'income' ? 'renda' : 'variavel'),
+  )
+  const type: TransactionType = kind === 'renda' ? 'income' : 'expense'
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
   const [description, setDescription] = useState(transaction?.description ?? '')
   const [category, setCategory] = useState(transaction?.category ?? '')
@@ -79,7 +82,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
   const allCategories = [...defaultCats, ...customCats]
 
   function resetForm() {
-    setType('expense')
+    setKind('variavel')
     setAmount('')
     setDescription('')
     setCategory('')
@@ -105,7 +108,7 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
     if (!user) { setLoading(false); return }
 
     const payload = {
-      type, amount: parsedAmount, description, category,
+      type, kind, amount: parsedAmount, description, category,
       subcategory: subcategory || null,
       date,
       payment_method: paymentMethod,
@@ -117,11 +120,27 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
       ? await supabase.from('transactions').update(payload).eq('id', transaction.id)
       : await supabase.from('transactions').insert(payload)
 
-    setLoading(false)
     if (error) {
+      setLoading(false)
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' })
       return
     }
+
+    // Cria automaticamente a linha correspondente no Planejamento do mês (meta 0,
+    // sem sobrescrever se já existir). Falha aqui não bloqueia a transação.
+    const label = subcategory.trim() || category
+    const { error: planErr } = await supabase.from('budget_plans').upsert({
+      user_id: user.id,
+      month: `${date.slice(0, 7)}-01`,
+      kind,
+      label,
+      category,
+      subcategory: subcategory || null,
+      planned: 0,
+    }, { onConflict: 'user_id,month,kind,label', ignoreDuplicates: true })
+    if (planErr) console.error('Falha ao criar item no planejamento:', planErr.message)
+
+    setLoading(false)
     toast({ title: isEditing ? 'Transação atualizada!' : 'Transação registrada!' })
     setOpen(false)
     router.refresh()
@@ -144,19 +163,30 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
           <DialogTitle>{isEditing ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Type toggle */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
-            {(['expense', 'income'] as TransactionType[]).map((t) => (
-              <button key={t} type="button"
-                onClick={() => { setType(t); setCategory('') }}
-                className={`py-2 px-3 rounded-md text-sm font-medium transition-all ${
-                  type === t
-                    ? t === 'income' ? 'bg-income text-white shadow-sm' : 'bg-expense text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}>
-                {t === 'income' ? 'Receita' : 'Despesa'}
-              </button>
-            ))}
+          {/* Tipo (classificação do planejamento) */}
+          <div className="space-y-1.5">
+            <Label>Tipo *</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {PLAN_KINDS.map((k) => {
+                const active = kind === k.value
+                return (
+                  <button
+                    key={k.value}
+                    type="button"
+                    onClick={() => { setKind(k.value); setCategory(''); setSubcategory('') }}
+                    className={`py-2 px-2 rounded-lg text-xs font-medium border transition-all ${
+                      active ? 'text-white border-transparent shadow-sm' : 'text-muted-foreground border-border hover:text-foreground'
+                    }`}
+                    style={active ? { backgroundColor: k.color } : undefined}
+                  >
+                    {k.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {type === 'income' ? 'Entra como Receita' : 'Entra como Despesa'} · cria a linha no Planejamento automaticamente
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

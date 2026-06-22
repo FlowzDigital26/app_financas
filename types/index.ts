@@ -23,6 +23,7 @@ export interface Transaction {
   id: string
   user_id: string
   type: TransactionType
+  kind?: PlanKind | null
   amount: number
   description: string
   category: string
@@ -35,6 +36,7 @@ export interface Transaction {
 
 export interface TransactionInsert {
   type: TransactionType
+  kind?: PlanKind | null
   amount: number
   description: string
   category: string

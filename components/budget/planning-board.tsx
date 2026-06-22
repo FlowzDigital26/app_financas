@@ -322,14 +322,24 @@ export function PlanningBoard({
                       <span className="font-medium truncate" title={r.item.label}>{r.item.label}</span>
                       <span className="text-muted-foreground truncate">{r.item.category}</span>
                       <span className="text-muted-foreground truncate">{r.item.subcategory || '—'}</span>
-                      <span className="text-right">{formatCurrency(r.item.planned)}</span>
+                      <span className="text-right">{r.item.planned > 0 ? formatCurrency(r.item.planned) : <span className="text-muted-foreground/60">—</span>}</span>
                       <span className="text-right">{formatCurrency(r.actual)}</span>
-                      <span className={`text-right font-medium ${r.result >= 0 ? 'text-income' : 'text-expense'}`}>
-                        {formatCurrency(r.result)}
-                      </span>
+                      {r.item.planned > 0 ? (
+                        <span className={`text-right font-medium ${r.result >= 0 ? 'text-income' : 'text-expense'}`}>
+                          {formatCurrency(r.result)}
+                        </span>
+                      ) : (
+                        <span className="text-right text-[11px] text-muted-foreground italic">sem meta</span>
+                      )}
                       <div className="flex items-center gap-2">
-                        <ProgressBar pct={r.pct} kind={kind} />
-                        <span className="text-[10px] text-muted-foreground w-9 text-right shrink-0">{r.pct.toFixed(0)}%</span>
+                        {r.item.planned > 0 ? (
+                          <>
+                            <ProgressBar pct={r.pct} kind={kind} />
+                            <span className="text-[10px] text-muted-foreground w-9 text-right shrink-0">{r.pct.toFixed(0)}%</span>
+                          </>
+                        ) : (
+                          <button onClick={() => openEdit(r.item)} className="text-[10px] text-accent hover:underline">definir meta</button>
+                        )}
                       </div>
                       <div className="flex justify-end gap-0.5 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(r.item)}>
