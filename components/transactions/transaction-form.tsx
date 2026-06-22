@@ -147,20 +147,6 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
       return
     }
 
-    // Cria automaticamente a linha correspondente no Planejamento do mês (meta 0,
-    // sem sobrescrever se já existir). Falha aqui não bloqueia a transação.
-    const label = subcategory.trim() || category
-    const { error: planErr } = await supabase.from('budget_plans').upsert({
-      user_id: user.id,
-      month: `${date.slice(0, 7)}-01`,
-      kind,
-      label,
-      category,
-      subcategory: subcategory || null,
-      planned: 0,
-    }, { onConflict: 'user_id,month,kind,label', ignoreDuplicates: true })
-    if (planErr) console.error('Falha ao criar item no planejamento:', planErr.message)
-
     setLoading(false)
     toast({ title: isEditing ? 'Transação atualizada!' : 'Transação registrada!' })
     setOpen(false)

@@ -6,11 +6,10 @@ import Link from 'next/link'
 import { parseISO, addMonths, subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
-  ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Loader2, Tags, Copy,
+  ChevronLeft, ChevronRight, ChevronDown, Plus, Pencil, Trash2, Loader2, Tags, Copy,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
-import { realizedFor, type ActualMaps } from '@/lib/planning'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,10 +22,21 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { PLAN_KINDS, type PlanKind, type BudgetPlanItem } from '@/types'
 
+export interface PlanTx {
+  id: string
+  name?: string | null
+  description: string
+  type: string
+  amount: number
+  category: string
+  subcategory?: string | null
+  date: string
+}
+
 interface PlanningBoardProps {
   month: string // 'yyyy-MM'
   items: BudgetPlanItem[]
-  actualMaps: ActualMaps
+  transactions: PlanTx[]
   incomeCategories: string[]
   expenseCategories: string[]
   subsByCategory: Record<string, string[]>
@@ -37,6 +47,7 @@ interface Row {
   actual: number
   result: number   // renda: actual-planned ; despesa: planned-actual (positivo = bom)
   pct: number
+  txs: PlanTx[]    // lançamentos que abastecem esta meta
 }
 
 const NONE = '__none__'
@@ -68,7 +79,7 @@ function ProgressBar({ pct, kind }: { pct: number; kind: PlanKind }) {
 const GRID = 'grid-cols-[1.4fr_1fr_1fr_0.9fr_1fr_1fr_1.1fr_auto]'
 
 export function PlanningBoard({
-  month, items, actualMaps, incomeCategories, expenseCategories, subsByCategory,
+  month, items, transactions, incomeCategories, expenseCategories, subsByCategory,
 }: PlanningBoardProps) {
   const router = useRouter()
   const supabase = createClient()
@@ -79,6 +90,16 @@ export function PlanningBoard({
 
   // Local copy of subcategories so newly created ones show up immediately
   const [subs, setSubs] = useState<Record<string, string[]>>(subsByCategory)
+
+  // Linhas expandidas (mostram os lançamentos que abastecem a meta)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   // ── Dialog state (add / edit) ──
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -94,13 +115,19 @@ export function PlanningBoard({
   const rowsByKind = useMemo(() => {
     const map: Record<PlanKind, Row[]> = { renda: [], investimento: [], fixo: [], variavel: [] }
     for (const item of items) {
-      const actual = realizedFor(item, actualMaps)
+      const income = item.kind === 'renda'
+      const txs = transactions.filter((t) =>
+        (t.type === 'income') === income &&
+        t.category === item.category &&
+        (item.subcategory ? t.subcategory === item.subcategory : true),
+      )
+      const actual = txs.reduce((s, t) => s + t.amount, 0)
       const result = item.kind === 'renda' ? actual - item.planned : item.planned - actual
       const pct = item.planned > 0 ? (actual / item.planned) * 100 : actual > 0 ? 100 : 0
-      map[item.kind].push({ item, actual, result, pct })
+      map[item.kind].push({ item, actual, result, pct, txs })
     }
     return map
-  }, [items, actualMaps])
+  }, [items, transactions])
 
   const plannedRenda = rowsByKind.renda.reduce((s, r) => s + r.item.planned, 0)
   const plannedFixo = rowsByKind.fixo.reduce((s, r) => s + r.item.planned, 0)
@@ -317,40 +344,74 @@ export function PlanningBoard({
                     <span>Progresso</span>
                     <span className="w-14" />
                   </div>
-                  {rows.map((r) => (
-                    <div key={r.item.id} className={`grid ${GRID} gap-3 px-4 py-2.5 items-center text-sm group`}>
-                      <span className="font-medium truncate" title={r.item.label}>{r.item.label}</span>
-                      <span className="text-muted-foreground truncate">{r.item.category}</span>
-                      <span className="text-muted-foreground truncate">{r.item.subcategory || '—'}</span>
-                      <span className="text-right">{r.item.planned > 0 ? formatCurrency(r.item.planned) : <span className="text-muted-foreground/60">—</span>}</span>
-                      <span className="text-right">{formatCurrency(r.actual)}</span>
-                      {r.item.planned > 0 ? (
-                        <span className={`text-right font-medium ${r.result >= 0 ? 'text-income' : 'text-expense'}`}>
-                          {formatCurrency(r.result)}
-                        </span>
-                      ) : (
-                        <span className="text-right text-[11px] text-muted-foreground italic">sem meta</span>
-                      )}
-                      <div className="flex items-center gap-2">
-                        {r.item.planned > 0 ? (
-                          <>
-                            <ProgressBar pct={r.pct} kind={kind} />
-                            <span className="text-[10px] text-muted-foreground w-9 text-right shrink-0">{r.pct.toFixed(0)}%</span>
-                          </>
-                        ) : (
-                          <button onClick={() => openEdit(r.item)} className="text-[10px] text-accent hover:underline">definir meta</button>
+                  {rows.map((r) => {
+                    const isOpen = expanded.has(r.item.id)
+                    return (
+                      <div key={r.item.id}>
+                        <div className={`grid ${GRID} gap-3 px-4 py-2.5 items-center text-sm group`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <button
+                              onClick={() => toggleExpand(r.item.id)}
+                              className="shrink-0 text-muted-foreground hover:text-foreground"
+                              title={isOpen ? 'Recolher lançamentos' : 'Ver lançamentos'}
+                            >
+                              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? '' : '-rotate-90'}`} />
+                            </button>
+                            <span className="font-medium truncate" title={r.item.label}>{r.item.label}</span>
+                            {r.txs.length > 0 && <span className="text-[10px] text-muted-foreground shrink-0">({r.txs.length})</span>}
+                          </div>
+                          <span className="text-muted-foreground truncate">{r.item.category}</span>
+                          <span className="text-muted-foreground truncate">{r.item.subcategory || '—'}</span>
+                          <span className="text-right">{r.item.planned > 0 ? formatCurrency(r.item.planned) : <span className="text-muted-foreground/60">—</span>}</span>
+                          <span className="text-right">{formatCurrency(r.actual)}</span>
+                          {r.item.planned > 0 ? (
+                            <span className={`text-right font-medium ${r.result >= 0 ? 'text-income' : 'text-expense'}`}>
+                              {formatCurrency(r.result)}
+                            </span>
+                          ) : (
+                            <span className="text-right text-[11px] text-muted-foreground italic">sem meta</span>
+                          )}
+                          <div className="flex items-center gap-2">
+                            {r.item.planned > 0 ? (
+                              <>
+                                <ProgressBar pct={r.pct} kind={kind} />
+                                <span className="text-[10px] text-muted-foreground w-9 text-right shrink-0">{r.pct.toFixed(0)}%</span>
+                              </>
+                            ) : (
+                              <button onClick={() => openEdit(r.item)} className="text-[10px] text-accent hover:underline">definir meta</button>
+                            )}
+                          </div>
+                          <div className="flex justify-end gap-0.5 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(r.item)}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-expense hover:bg-expense/10" onClick={() => handleDelete(r.item)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Lançamentos que abastecem esta meta */}
+                        {isOpen && (
+                          <div className="bg-muted/20 px-4 py-2 pl-10 space-y-1">
+                            {r.txs.length === 0 ? (
+                              <p className="text-[11px] text-muted-foreground">
+                                Nenhum lançamento neste mês. Lance uma transação em{' '}
+                                <span className="font-medium">{r.item.subcategory ? `${r.item.category} › ${r.item.subcategory}` : r.item.category}</span> para abastecer esta meta.
+                              </p>
+                            ) : r.txs.map((t) => (
+                              <div key={t.id} className="flex items-center justify-between text-xs gap-3">
+                                <span className="text-muted-foreground truncate">
+                                  {format(parseISO(t.date), 'dd/MM')} · {t.name || t.description}
+                                </span>
+                                <span className="font-medium shrink-0">{formatCurrency(t.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <div className="flex justify-end gap-0.5 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(r.item)}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-expense hover:bg-expense/10" onClick={() => handleDelete(r.item)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                   {/* Total row */}
                   <div className={`grid ${GRID} gap-3 px-4 py-2.5 items-center text-sm font-semibold bg-muted/30`}>
                     <span>Total</span>

@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns'
-import { PlanningBoard } from '@/components/budget/planning-board'
-import { buildActualMaps } from '@/lib/planning'
+import { PlanningBoard, type PlanTx } from '@/components/budget/planning-board'
 import {
   DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES,
   type BudgetPlanItem, type Category, type Subcategory,
@@ -47,10 +46,11 @@ export default async function PlanejamentoPage({
       .order('created_at', { ascending: true }),
     supabase
       .from('transactions')
-      .select('type, amount, category, subcategory')
+      .select('id, name, description, type, amount, category, subcategory, date')
       .eq('user_id', user.id)
       .gte('date', monthFirst)
-      .lte('date', monthEnd),
+      .lte('date', monthEnd)
+      .order('date', { ascending: false }),
     supabase
       .from('categories')
       .select('name, type')
@@ -62,8 +62,7 @@ export default async function PlanejamentoPage({
       .order('name', { ascending: true }),
   ])
 
-  const transactions = (monthTxs ?? []) as { type: string; amount: number; category: string; subcategory?: string | null }[]
-  const actualMaps = buildActualMaps(transactions)
+  const transactions = (monthTxs ?? []) as PlanTx[]
 
   const cats = (customCats ?? []) as Pick<Category, 'name' | 'type'>[]
   const incomeCategories = mergeNames(DEFAULT_INCOME_CATEGORIES, cats.filter((c) => c.type === 'income'))
@@ -79,7 +78,7 @@ export default async function PlanejamentoPage({
     <PlanningBoard
       month={monthKey}
       items={(plans ?? []) as BudgetPlanItem[]}
-      actualMaps={actualMaps}
+      transactions={transactions}
       incomeCategories={incomeCategories}
       expenseCategories={expenseCategories}
       subsByCategory={subsByCategory}
