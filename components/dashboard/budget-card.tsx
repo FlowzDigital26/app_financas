@@ -47,7 +47,7 @@ export function BudgetCard({ config, categoryActual, totalIncome, totalExpense }
           </p>
         </div>
         <Link
-          href="/configuracoes"
+          href="/planejamento"
           className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
         >
           <Settings className="w-3.5 h-3.5" />
@@ -79,7 +79,7 @@ export function BudgetCard({ config, categoryActual, totalIncome, totalExpense }
       <div className="flex items-center justify-between px-5 pt-4 pb-3">
         <h2 className="text-base font-display font-semibold">Controle de Orçamento</h2>
         <Link
-          href="/configuracoes"
+          href="/planejamento"
           className="text-xs text-muted-foreground hover:text-accent transition-colors flex items-center gap-1"
         >
           <Settings className="w-3 h-3" />

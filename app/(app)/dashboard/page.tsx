@@ -22,8 +22,8 @@ export default async function HomePage() {
   const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd')
   const monthLabel = format(now, "MMMM 'de' yyyy", { locale: ptBR })
 
-  // This month's transactions + budget config in parallel
-  const [{ data: monthTxs = [] }, { data: budgetData }] = await Promise.all([
+  // This month's transactions + monthly plan in parallel
+  const [{ data: monthTxs = [] }, { data: planItems = [] }] = await Promise.all([
     supabase
       .from('transactions')
       .select('*')
@@ -33,10 +33,10 @@ export default async function HomePage() {
       .order('date', { ascending: false })
       .order('created_at', { ascending: false }),
     supabase
-      .from('user_budget_config')
-      .select('*')
+      .from('budget_plans')
+      .select('name, kind, planned')
       .eq('user_id', user.id)
-      .maybeSingle(),
+      .eq('month', monthStart),
   ])
 
   const transactions = (monthTxs ?? []) as Transaction[]
@@ -49,18 +49,21 @@ export default async function HomePage() {
     categoryActual[t.category] = (categoryActual[t.category] ?? 0) + t.amount
   })
 
-  const budgetConfig: BudgetConfig = budgetData
-    ? (budgetData as unknown as BudgetConfig)
-    : {
-        id: '',
-        user_id: user.id,
-        monthly_salary: 0,
-        savings_goal: 0,
-        investment_goal: 0,
-        category_budgets: {},
-        updated_at: '',
-        created_at: '',
-      }
+  // Build a BudgetConfig view from this month's plan items
+  const plans = (planItems ?? []) as { name: string; kind: string; planned: number }[]
+  const category_budgets: Record<string, number> = {}
+  let monthly_salary = 0
+  let investment_goal = 0
+  for (const p of plans) {
+    if (p.kind === 'renda') monthly_salary += p.planned
+    else if (p.kind === 'investimento') { investment_goal += p.planned; category_budgets[p.name] = p.planned }
+    else category_budgets[p.name] = p.planned // fixo / variavel
+  }
+  const budgetConfig: BudgetConfig = {
+    id: '', user_id: user.id,
+    monthly_salary, savings_goal: 0, investment_goal,
+    category_budgets, updated_at: '', created_at: '',
+  }
 
   // Monthly chart — last 6 months
   const monthlyData: MonthlyData[] = []

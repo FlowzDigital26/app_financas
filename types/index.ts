@@ -161,3 +161,23 @@ export interface BudgetConfig {
   updated_at: string
   created_at: string
 }
+
+// ── Monthly planning (Planejamento) ──
+export type PlanKind = 'renda' | 'investimento' | 'fixo' | 'variavel'
+
+export const PLAN_KINDS: { value: PlanKind; label: string; direction: TransactionType; color: string }[] = [
+  { value: 'renda',        label: 'Renda',          direction: 'income',  color: '#3aaa6e' },
+  { value: 'investimento', label: 'Investimentos',  direction: 'expense', color: '#06b6d4' },
+  { value: 'fixo',         label: 'Fixo',           direction: 'expense', color: '#f97316' },
+  { value: 'variavel',     label: 'Variável',       direction: 'expense', color: '#f59e0b' },
+]
+
+export interface BudgetPlanItem {
+  id: string
+  user_id: string
+  month: string   // 'yyyy-MM-dd' (first day of month)
+  name: string
+  kind: PlanKind
+  planned: number
+  created_at: string
+}

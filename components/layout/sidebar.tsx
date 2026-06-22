@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, FileText, Target, Tags, LogOut,
-  ChevronLeft, ChevronRight, Repeat2, Settings, Bot, FileUp,
+  ChevronLeft, ChevronRight, Repeat2, Settings, Bot, FileUp, ClipboardList,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -15,6 +15,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 const navItems = [
   { href: '/dashboard',        label: 'Visão Geral',    icon: LayoutDashboard },
   { href: '/extrato',          label: 'Extrato',         icon: FileText },
+  { href: '/planejamento',     label: 'Planejamento',    icon: ClipboardList },
   { href: '/importar-extrato', label: 'Importar PDF',    icon: FileUp },
   { href: '/objetivos',        label: 'Objetivos',       icon: Target },
   { href: '/categorias',       label: 'Categorias',      icon: Tags },

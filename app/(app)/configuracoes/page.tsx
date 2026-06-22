@@ -6,8 +6,7 @@ import Link from 'next/link'
 import {
   User, Lock, Bell, Shield, HelpCircle, LogOut,
   ChevronRight, Sun, Moon, Repeat2, Target, Tags,
-  FileText, LayoutDashboard, Loader2, CheckCircle2,
-  Wallet, PiggyBank, TrendingUp, Save,
+  FileText, LayoutDashboard, Loader2, CheckCircle2, Wallet,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
@@ -17,20 +16,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/use-toast'
-import { DEFAULT_EXPENSE_CATEGORIES } from '@/types'
-
-const CATEGORY_HINTS: Record<string, string> = {
-  Alimentação:  'Mercado, restaurantes, delivery',
-  Transporte:   'Combustível, transporte público, Uber',
-  Moradia:      'Aluguel, condomínio, IPTU',
-  Saúde:        'Plano de saúde, farmácia, consultas',
-  Lazer:        'Viagens, entretenimento, hobbies',
-  Educação:     'Cursos, mensalidade, livros',
-  Compras:      'Roupas, eletrônicos, casa',
-  Assinaturas:  'Internet, telefone, streaming',
-  Contas:       'Luz, gás, água, tarifas fixas',
-  Outros:       'Demais despesas variadas',
-}
 
 function SettingRow({
   icon: Icon,
@@ -82,32 +67,6 @@ function SectionCard({ title, children }: { title?: string; children: React.Reac
   )
 }
 
-function MoneyInput({
-  id, label, hint, value, onChange,
-}: {
-  id: string; label: string; hint?: string; value: number; onChange: (v: number) => void
-}) {
-  return (
-    <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs font-medium">{label}</Label>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">R$</span>
-        <Input
-          id={id}
-          type="number"
-          min="0"
-          step="0.01"
-          value={value || ''}
-          onChange={e => onChange(parseFloat(e.target.value) || 0)}
-          className="pl-8 text-sm h-9"
-          placeholder="0,00"
-        />
-      </div>
-      {hint && <p className="text-[10px] text-muted-foreground leading-tight">{hint}</p>}
-    </div>
-  )
-}
-
 export default function ConfiguracoesPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -119,14 +78,6 @@ export default function ConfiguracoesPage() {
   const [fullName, setFullName] = useState('')
   const [initials, setInitials] = useState('?')
   const [loadingProfile, setLoadingProfile] = useState(true)
-
-  // Budget state
-  const [salary, setSalary]             = useState(0)
-  const [savingsGoal, setSavingsGoal]   = useState(0)
-  const [investGoal, setInvestGoal]     = useState(0)
-  const [catBudgets, setCatBudgets]     = useState<Record<string, number>>({})
-  const [savingBudget, setSavingBudget] = useState(false)
-  const [budgetLoaded, setBudgetLoaded] = useState(false)
 
   // Password change dialog
   const [pwOpen, setPwOpen]         = useState(false)
@@ -148,17 +99,6 @@ export default function ConfiguracoesPage() {
       setFullName(name)
       setInitials(getInitials(name))
       setLoadingProfile(false)
-
-      // Budget config
-      const { data: budgetData } = await supabase
-        .from('user_budget_config').select('*').eq('user_id', user.id).maybeSingle()
-      if (budgetData) {
-        setSalary(budgetData.monthly_salary ?? 0)
-        setSavingsGoal(budgetData.savings_goal ?? 0)
-        setInvestGoal(budgetData.investment_goal ?? 0)
-        setCatBudgets((budgetData.category_budgets as Record<string, number>) ?? {})
-      }
-      setBudgetLoaded(true)
     }
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -185,30 +125,6 @@ export default function ConfiguracoesPage() {
     toast({ title: 'Senha alterada com sucesso!' })
     setPwOpen(false)
     setNewPw(''); setConfirmPw('')
-  }
-
-  async function saveBudgetConfig() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setSavingBudget(true)
-    const { error } = await supabase.from('user_budget_config').upsert({
-      user_id: user.id,
-      monthly_salary: salary,
-      savings_goal: savingsGoal,
-      investment_goal: investGoal,
-      category_budgets: catBudgets,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' })
-    setSavingBudget(false)
-    if (error) {
-      toast({ title: 'Erro ao salvar orçamento', description: error.message, variant: 'destructive' })
-    } else {
-      toast({ title: 'Orçamento salvo com sucesso!' })
-    }
-  }
-
-  function setCat(cat: string, value: number) {
-    setCatBudgets(prev => ({ ...prev, [cat]: value }))
   }
 
   const isDark = theme === 'dark'
@@ -241,79 +157,15 @@ export default function ConfiguracoesPage() {
         )}
       </div>
 
-      {/* ── Budget config ── */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Orçamento Mensal</p>
-          {!budgetLoaded && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-        </div>
-
-        <div className="p-4 space-y-5">
-          {/* Renda */}
-          <div>
-            <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5 text-income" /> Renda planejada
-            </p>
-            <MoneyInput
-              id="salary"
-              label="Salário / receita mensal esperada"
-              value={salary}
-              onChange={setSalary}
-            />
-          </div>
-
-          {/* Category budgets */}
-          <div>
-            <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <Wallet className="w-3.5 h-3.5 text-accent" /> Limite por categoria de despesa
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {DEFAULT_EXPENSE_CATEGORIES.map((cat) => (
-                <MoneyInput
-                  key={cat.name}
-                  id={`cat-${cat.name}`}
-                  label={cat.name}
-                  hint={CATEGORY_HINTS[cat.name]}
-                  value={catBudgets[cat.name] ?? 0}
-                  onChange={(v) => setCat(cat.name, v)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Goals */}
-          <div>
-            <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <PiggyBank className="w-3.5 h-3.5 text-gold" /> Metas mensais
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <MoneyInput
-                id="savings"
-                label="Poupança / Reserva"
-                hint="Quanto pretende guardar"
-                value={savingsGoal}
-                onChange={setSavingsGoal}
-              />
-              <MoneyInput
-                id="invest"
-                label="Investimento"
-                hint="Aportes mensais planejados"
-                value={investGoal}
-                onChange={setInvestGoal}
-              />
-            </div>
-          </div>
-
-          <Button onClick={saveBudgetConfig} disabled={savingBudget || !budgetLoaded} className="w-full gap-2">
-            {savingBudget ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Salvar orçamento
-          </Button>
-        </div>
-      </div>
-
       {/* Navigation shortcuts */}
       <SectionCard title="Acessar">
         <SettingRow icon={LayoutDashboard} label="Dashboard"    href="/dashboard" />
+        <SettingRow
+          icon={Wallet}
+          label="Planejamento"
+          description="Defina metas por categoria e acompanhe o realizado do mês"
+          href="/planejamento"
+        />
         <SettingRow icon={FileText}        label="Extrato"      href="/extrato" />
         <SettingRow icon={Repeat2}         label="Assinaturas"  href="/assinaturas" />
         <SettingRow icon={Target}          label="Objetivos"    href="/objetivos" />
