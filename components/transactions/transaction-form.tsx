@@ -179,29 +179,53 @@ export function TransactionForm({ transaction, onSuccess, trigger }: Transaction
           <DialogTitle>{isEditing ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Tipo (classificação do planejamento) */}
-          <div className="space-y-1.5">
+          {/* Entrada x Despesa */}
+          <div className="space-y-2">
             <Label>Tipo *</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {PLAN_KINDS.map((k) => {
-                const active = kind === k.value
-                return (
-                  <button
-                    key={k.value}
-                    type="button"
-                    onClick={() => { setKind(k.value); setCategory(''); setSubcategory('') }}
-                    className={`py-2 px-2 rounded-lg text-xs font-medium border transition-all ${
-                      active ? 'text-white border-transparent shadow-sm' : 'text-muted-foreground border-border hover:text-foreground'
-                    }`}
-                    style={active ? { backgroundColor: k.color } : undefined}
-                  >
-                    {k.label}
-                  </button>
-                )
-              })}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-lg">
+              <button
+                type="button"
+                onClick={() => { setKind('renda'); setCategory(''); setSubcategory('') }}
+                className={`py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                  type === 'income' ? 'bg-income text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Entrada
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (type === 'income') { setKind('variavel'); setCategory(''); setSubcategory('') } }}
+                className={`py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                  type === 'expense' ? 'bg-expense text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Despesa
+              </button>
             </div>
+
+            {/* Subtipo (só para despesa) — classifica no Planejamento */}
+            {type === 'expense' && (
+              <div className="grid grid-cols-3 gap-2">
+                {PLAN_KINDS.filter((k) => k.direction === 'expense').map((k) => {
+                  const active = kind === k.value
+                  return (
+                    <button
+                      key={k.value}
+                      type="button"
+                      onClick={() => setKind(k.value)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-medium border transition-all ${
+                        active ? 'text-white border-transparent shadow-sm' : 'text-muted-foreground border-border hover:text-foreground'
+                      }`}
+                      style={active ? { backgroundColor: k.color } : undefined}
+                    >
+                      {k.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             <p className="text-[10px] text-muted-foreground">
-              {type === 'income' ? 'Entra como Receita' : 'Entra como Despesa'} · cria a linha no Planejamento automaticamente
+              Cria a linha no Planejamento automaticamente{type === 'expense' ? ' (na seção escolhida acima)' : ' (em Renda)'}.
             </p>
           </div>
 
